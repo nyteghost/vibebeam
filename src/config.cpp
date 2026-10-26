@@ -2132,13 +2132,32 @@ namespace config {
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);
     path_f(vars, "log_path", config::sunshine.log_file);
 #if defined(__linux__)
-    // Files sent from Vibelight land in ~/Downloads/Vibebeam unless the user chose a folder.
+    // Files sent from Vibelight land in "Received files" inside the user's Documents folder
+    // (the XDG documents folder, usually ~/Documents) unless the user chose a folder.
     if (vars.find("file_transfer_dir") == vars.end()) {
       if (const char *home = std::getenv("HOME"); home && *home) {
-        config::sunshine.file_transfer_dir = (std::filesystem::path(home) / "Downloads" / "Vibebeam").string();
+        std::filesystem::path docs = std::filesystem::path(home) / "Documents";
+        std::ifstream user_dirs(std::filesystem::path(home) / ".config" / "user-dirs.dirs");
+        for (std::string line; std::getline(user_dirs, line);) {
+          constexpr std::string_view key = "XDG_DOCUMENTS_DIR=";
+          if (line.rfind(key, 0) != 0) {
+            continue;
+          }
+          std::string value = line.substr(key.size());
+          if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+            value = value.substr(1, value.size() - 2);
+          }
+          if (value.rfind("$HOME", 0) == 0) {
+            value = std::string(home) + value.substr(5);
+          }
+          if (!value.empty() && value.front() == '/') {
+            docs = value;
+          }
+          break;
+        }
+        config::sunshine.file_transfer_dir = (docs / "Received files").string();
       }
     }
-#endif
     path_f(vars, "file_transfer_dir", config::sunshine.file_transfer_dir);
     path_f(vars, "file_state", nvhttp.file_state);
     path_f(vars, "vibeshine_file_state", nvhttp.vibeshine_file_state);
