@@ -117,6 +117,14 @@ using namespace std::literals;
 
 namespace nvhttp {
 
+  std::filesystem::path received_files_dir() {
+    std::filesystem::path dir = config::sunshine.file_transfer_dir.empty() ? std::filesystem::path {"received-files"} : std::filesystem::path {config::sunshine.file_transfer_dir};
+    if (dir.is_relative()) {
+      dir = platf::appdata() / dir;
+    }
+    return dir;
+  }
+
   namespace {
     struct remote_role_owner_t {
       remote_session::role_e role {remote_session::role_e::none};
@@ -6692,7 +6700,7 @@ launch_session->exact_target_hold.reset();
     }
 
     std::error_code ec;
-    std::filesystem::path dir = config::sunshine.file_transfer_dir;
+    std::filesystem::path dir = received_files_dir();
     std::filesystem::create_directories(dir, ec);
     if (ec) {
       BOOST_LOG(warning) << "[file] Cannot create the receive folder ["sv << dir.string() << "]: "sv << ec.message() << "; trying the config folder instead"sv;

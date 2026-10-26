@@ -63,6 +63,10 @@ namespace two_factor {
 
   /// Where the state file lives (call once at startup; until then 2FA is off), plus test-only clock/reset hooks.
   void set_state_path(const std::filesystem::path &path);
+
+  /// Local recovery: delete the 2FA state (secret, backup codes) so 2FA is off again. Returns true if 2FA is now off.
+  /// Only used by the `--reset-2fa` command line option, which needs shell access to the host.
+  bool reset_state();
   void set_clock_for_tests(std::int64_t unix_seconds);
   void reset_runtime_for_tests();
 

@@ -38,6 +38,11 @@ namespace args {
   int creds(const char *name, int argc, char *argv[]);
 
   /**
+   * @brief Turn two-factor sign-in off from the command line (for a lost phone and lost backup codes).
+   */
+  int reset_2fa();
+
+  /**
    * @brief Print help to stdout, then exit.
    * @param name The name of the program.
    * @examples

@@ -22,6 +22,7 @@ import ClientSettingsEditor, {
   type HdrProfileEntry,
 } from '@/components/devices/ClientSettingsEditor.vue';
 import DisplayTopologyEditor from '@/components/devices/DisplayTopologyEditor.vue';
+import ReceivedFiles from '@/components/devices/ReceivedFiles.vue';
 import TwoFactorSettings from '@/components/settings/TwoFactorSettings.vue';
 import { settingsDefaults } from '@/configs/settingsSchema';
 import { formatRelativeTime } from '@/utils/format';
@@ -853,6 +854,7 @@ onBeforeUnmount(() => {
 
     <div class="devices-stack">
       <TwoFactorSettings />
+      <ReceivedFiles />
       <InlineAlert
         v-if="error"
         tone="danger"

@@ -4730,6 +4730,48 @@ namespace confighttp {
    * @brief Two-factor status for the web console.
    * @api_examples{/api/two-factor| GET| null}
    */
+  void getReceivedFiles(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    const auto dir = nvhttp::received_files_dir();
+    nlohmann::json out;
+    out["path"] = dir.string();
+    out["files"] = nlohmann::json::array();
+
+    struct entry_t {
+      std::string name;
+      std::uintmax_t size;
+      std::int64_t modified;
+    };
+    std::vector<entry_t> entries;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it {dir, ec}, end; !ec && it != end && entries.size() < 5000; it.increment(ec)) {
+      std::error_code entry_ec;
+      if (!it->is_regular_file(entry_ec) || entry_ec) {
+        continue;
+      }
+      const auto size = it->file_size(entry_ec);
+      const auto time = std::filesystem::last_write_time(it->path(), entry_ec);
+      if (entry_ec) {
+        continue;
+      }
+      const auto unix_time = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::clock_cast<std::chrono::system_clock>(time).time_since_epoch()
+      ).count();
+      entries.push_back({it->path().filename().string(), size, static_cast<std::int64_t>(unix_time)});
+    }
+    std::ranges::sort(entries, [](const entry_t &a, const entry_t &b) {
+      return a.modified > b.modified;
+    });
+    out["total"] = entries.size();
+    for (std::size_t i = 0; i < entries.size() && i < 20; ++i) {
+      out["files"].push_back({{"name", entries[i].name}, {"size", entries[i].size}, {"modified", entries[i].modified}});
+    }
+    send_response(response, out);
+  }
+
   void getTwoFactorStatus(resp_https_t response, req_https_t request) {
     if (!authenticate(response, request)) {
       return;
@@ -6475,6 +6517,7 @@ namespace confighttp {
     register_api_route("^/api/pin$", "POST", savePin);
     register_api_route("^/api/otp$", "POST", getOTP);
     register_api_route("^/api/apps$", "GET", getApps);
+    register_api_route("^/api/files/received$", "GET", getReceivedFiles);
     register_api_route("^/api/two-factor$", "GET", getTwoFactorStatus);
     register_api_route("^/api/two-factor/setup$", "POST", postTwoFactorSetup);
     register_api_route("^/api/two-factor/enable$", "POST", postTwoFactorEnable);

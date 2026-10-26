@@ -213,6 +213,9 @@ std::map<std::string_view, std::function<int(const char *name, int argc, char **
   {"creds"sv, [](const char *name, int argc, char **argv) {
      return args::creds(name, argc, argv);
    }},
+  {"reset-2fa"sv, [](const char *name, int argc, char **argv) {
+     return args::reset_2fa();
+   }},
   {"help"sv, [](const char *name, int argc, char **argv) {
      return args::help(name);
    }},

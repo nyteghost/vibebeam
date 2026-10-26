@@ -19,6 +19,7 @@
 #include "logging.h"
 #include "network.h"
 #include "platform/common.h"
+#include "two_factor.h"
 
 extern "C" {
 #ifdef _WIN32
@@ -40,6 +41,16 @@ namespace args {
     }
 
     return http::save_user_creds(config::sunshine.credentials_file, argv[0], argv[1]);
+  }
+
+  int reset_2fa() {
+    two_factor::set_state_path(platf::appdata() / "two_factor.json");
+    if (!two_factor::reset_state()) {
+      std::cerr << "Could not remove the 2FA settings file in " << platf::appdata().string() << std::endl;
+      return 1;
+    }
+    std::cout << "Two-factor sign-in is now off. Turn it on again from the Clients page." << std::endl;
+    return 0;
   }
 
   int help(const char *name) {
