@@ -9,7 +9,7 @@
 pkgname='vibebeam'
 _src='vibepollo'
 pkgver=@SUNSHINE_ARCH_PKGVER@@SUNSHINE_SUB_VERSION@
-pkgrel=3
+pkgrel=4
 pkgdesc="@PROJECT_DESCRIPTION@"
 arch=('x86_64' 'aarch64')
 url=@PROJECT_HOMEPAGE_URL@

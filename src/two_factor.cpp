@@ -474,6 +474,20 @@ namespace two_factor {
     g_state_path_override = path;
   }
 
+  bool reset_state() {
+    std::lock_guard lock {g_mutex};
+    g_limiters.clear();
+    g_grace.clear();
+    g_pending.reset();
+    const auto path = state_path();
+    if (path.empty()) {
+      return false;
+    }
+    std::error_code ec;
+    std::filesystem::remove(path, ec);
+    return !ec && !std::filesystem::exists(path, ec);
+  }
+
   void set_clock_for_tests(std::int64_t unix_seconds) {
     std::lock_guard lock {g_mutex};
     g_fixed_clock = unix_seconds;

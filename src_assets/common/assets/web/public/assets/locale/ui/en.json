@@ -1335,6 +1335,7 @@
         "hostStatus": "Host status"
       },
       "refreshing": "Refreshing",
+      "tryAgain": "Try again",
       "remoteStream": "Remote stream",
       "sessions": "Sessions",
       "title": "Overview",

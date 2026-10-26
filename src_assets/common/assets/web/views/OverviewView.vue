@@ -416,9 +416,18 @@ onBeforeUnmount(() => {
           :title="warning.title"
         >
           {{ warning.detail }}
-          <template #actions
-            ><RouterLink :to="warning.to">{{ warning.action }}</RouterLink></template
-          >
+          <template #actions>
+            <button
+              v-if="warning.key === 'partial-data'"
+              type="button"
+              class="overview-retry"
+              :disabled="refreshing"
+              @click="refresh(true)"
+            >
+              {{ refreshing ? t('ui.overview.refreshing') : t('ui.overview.tryAgain') }}
+            </button>
+            <RouterLink :to="warning.to">{{ warning.action }}</RouterLink>
+          </template>
         </InlineAlert>
       </div>
       <InlineAlert
@@ -552,6 +561,22 @@ onBeforeUnmount(() => {
   display: grid;
   gap: var(--vs-space-24);
 }
+.overview-retry {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  margin-right: 1rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.overview-retry:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .overview-refresh {
   display: flex;
   flex-wrap: wrap;

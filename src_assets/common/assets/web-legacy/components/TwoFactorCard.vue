@@ -87,8 +87,8 @@
         <n-button secondary @click="confirmingOff = false">Cancel</n-button>
       </div>
       <p class="text-xs opacity-70 mt-3">
-        Locked out? Delete <code>two_factor.json</code> from the host's config folder to turn this
-        off (Linux: <code>sudo rm /var/lib/vibepollo/two_factor.json</code>).
+        Lost your phone and backup codes? On the host, run <code>vibepollo --reset-2fa</code> to turn
+        this off, then set it up again.
       </p>
     </template>
   </n-card>

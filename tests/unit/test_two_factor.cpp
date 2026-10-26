@@ -146,6 +146,16 @@ TEST_F(TwoFactorTest, DisableNeedsACodeAndDeletingTheFileResets) {
   EXPECT_EQ(two_factor::check("phone", "", false), result_e::ok);
 }
 
+TEST_F(TwoFactorTest, ResetStateTurnsTwoFactorOff) {
+  std::uint64_t used = 0;
+  enable(used);
+  EXPECT_TRUE(two_factor::enabled());
+  EXPECT_TRUE(two_factor::reset_state());
+  EXPECT_FALSE(two_factor::enabled());
+  EXPECT_EQ(two_factor::check("phone", "", false), result_e::ok);
+  EXPECT_TRUE(two_factor::reset_state());  // already off is fine
+}
+
 TEST_F(TwoFactorTest, DisableWithBackupCode) {
   std::uint64_t used = 0;
   const auto backups = enable(used);
