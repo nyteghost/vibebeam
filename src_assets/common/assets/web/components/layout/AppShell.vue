@@ -46,6 +46,15 @@ const navigationGroups = [
     ],
   },
 ] as const;
+// Browser streaming is only offered when this host build includes it
+const visibleNavigationGroups = computed(() =>
+  navigationGroups.map((group) => ({
+    ...group,
+    items: group.items.filter(
+      (item) => item.to !== '/stream' || system.browserStreamAvailable !== false,
+    ),
+  })),
+);
 const themes = [
   { value: 'light', icon: 'sun' },
   { value: 'dark', icon: 'moon' },
@@ -207,7 +216,7 @@ onBeforeUnmount(() => {
       </div>
 
       <nav class="sidebar__navigation">
-        <div v-for="group in navigationGroups" :key="group.labelKey" class="nav-group">
+        <div v-for="group in visibleNavigationGroups" :key="group.labelKey" class="nav-group">
           <p class="nav-group__label sidebar__label">{{ t(group.labelKey) }}</p>
           <ul class="nav-list">
             <li v-for="item in group.items" :key="item.to">

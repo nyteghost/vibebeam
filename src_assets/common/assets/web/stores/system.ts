@@ -68,6 +68,8 @@ export const useSystemStore = defineStore('system', () => {
     Boolean(session.value?.appRunning || (session.value?.activeSessions ?? 0) > 0),
   );
   const restartRequired = ref(false);
+  // null until the host answered; false when this build has no browser streaming (e.g. the Linux package)
+  const browserStreamAvailable = ref<boolean | null>(null);
   const health = computed(() =>
     hostReadiness(metadata.value, isStreaming.value, Boolean(error.value)),
   );
@@ -108,10 +110,14 @@ export const useSystemStore = defineStore('system', () => {
     if (loadingHost.value || needsLogin.value || needsSetup.value) return;
     loadingHost.value = true;
     try {
-      const [metadataResult, sessionResult] = await Promise.allSettled([
+      const [metadataResult, sessionResult, webrtcResult] = await Promise.allSettled([
         apiGet<HostMetadata>('/api/metadata', { signal: AbortSignal.timeout(5000) }),
         apiGet<SessionStatus>('/api/session/status', { signal: AbortSignal.timeout(5000) }),
+        apiGet<{ enabled?: boolean }>('/api/webrtc/capabilities', { signal: AbortSignal.timeout(5000) }),
       ]);
+      if (webrtcResult.status === 'fulfilled') {
+        browserStreamAvailable.value = webrtcResult.value.enabled === true;
+      }
       if (metadataResult.status === 'fulfilled') metadata.value = metadataResult.value;
       if (sessionResult.status === 'fulfilled') session.value = sessionResult.value;
 
@@ -201,6 +207,7 @@ export const useSystemStore = defineStore('system', () => {
     applyTheme,
     auth,
     booting,
+    browserStreamAvailable,
     canUseApp,
     createCredentials,
     error,
