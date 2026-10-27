@@ -16,6 +16,8 @@ name: Publish release
 permissions:
   contents: write
   actions: read
+  id-token: write      # for the build provenance attestation
+  attestations: write
 
 on:
   workflow_dispatch:
@@ -95,6 +97,16 @@ jobs:
           else
             echo "::warning::No Arch Linux package in this CI run; publishing the Windows ZIP only."
           fi
+
+      # A signed statement (GitHub artifact attestation) that these exact files were published by this
+      # workflow from this repository. Check a download with: gh attestation verify <file> -R nyteghost/vibebeam
+      - name: Attest build provenance
+        continue-on-error: true
+        uses: actions/attest-build-provenance@62fc1d596301d0ab9914e1fec14dc5c8d93f65cd # v3.2.0
+        with:
+          subject-path: |
+            dl/**/*.zip
+            dl-arch/**/*.pkg.tar.zst
 
       - name: Create or update the release
         shell: bash
