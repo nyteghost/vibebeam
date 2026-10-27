@@ -302,6 +302,47 @@ namespace nvhttp {
   static std::string otp_device_name;
   static std::chrono::time_point<std::chrono::steady_clock> otp_creation_time;
 
+  namespace {
+    /**
+     * @brief Monitors a paired client may choose from (Vibelight's monitor picker): the host's
+     *        real displays. Virtual and managed private displays are left out; they have their
+     *        own settings.
+     * @return pairs of (device id, readable name)
+     */
+    std::vector<std::pair<std::string, std::string>> selectable_monitors() {
+      std::vector<std::pair<std::string, std::string>> result;
+      try {
+        const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
+        if (!devices) {
+          return result;
+        }
+        for (const auto &device : *devices) {
+          if (device.m_device_id.empty()) {
+            continue;
+          }
+#ifdef _WIN32
+          // Windows only fills in the display details for active displays
+          if (!device.m_info || VDISPLAY::is_virtual_display_output(device.m_device_id)) {
+            continue;
+          }
+#else
+          if (platf::linux_private_display::is_private_output(device.m_device_id) || platf::linux_private_display::is_kernel_output(device.m_device_id)) {
+            continue;
+          }
+#endif
+          std::string name = !device.m_friendly_name.empty() ? device.m_friendly_name : device.m_display_name;
+          if (name.empty()) {
+            name = device.m_device_id;
+          }
+          result.emplace_back(device.m_device_id, std::move(name));
+        }
+      } catch (const std::exception &e) {
+        BOOST_LOG(warning) << "Could not list monitors: "sv << e.what();
+      }
+      return result;
+    }
+  }  // namespace
+
 #ifdef _WIN32
   namespace {
     bool remote_device_id_equals(const std::string &lhs, const std::string &rhs) {
@@ -316,34 +357,6 @@ namespace nvhttp {
         return static_cast<int>(std::lround(*value));
       }
       return 0;
-    }
-
-    /**
-     * @brief Monitors a paired client may choose from (Vibelight's monitor picker): the host's
-     *        real, active displays. Virtual displays are left out; they have their own settings.
-     * @return pairs of (device id, readable name)
-     */
-    std::vector<std::pair<std::string, std::string>> selectable_monitors() {
-      std::vector<std::pair<std::string, std::string>> result;
-      try {
-        const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
-        if (!devices) {
-          return result;
-        }
-        for (const auto &device : *devices) {
-          if (device.m_device_id.empty() || !device.m_info || VDISPLAY::is_virtual_display_output(device.m_device_id)) {
-            continue;
-          }
-          std::string name = !device.m_friendly_name.empty() ? device.m_friendly_name : device.m_display_name;
-          if (name.empty()) {
-            name = device.m_device_id;
-          }
-          result.emplace_back(device.m_device_id, std::move(name));
-        }
-      } catch (const std::exception &e) {
-        BOOST_LOG(warning) << "Could not list monitors: "sv << e.what();
-      }
-      return result;
     }
 
     void refresh_remote_monitor_baseline(const bool extend_active_stream) {
