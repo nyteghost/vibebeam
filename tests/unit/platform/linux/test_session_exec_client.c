@@ -136,8 +136,34 @@ static int check_display_request_limits(void) {
   return 0;
 }
 
+static char *clipboard_hex_from(const char *input, size_t length) {
+  /* A temporary file, not a pipe: oversized input must not block on a full pipe buffer. */
+  FILE *file = tmpfile();
+  if (!file || fwrite(input, 1, length, file) != length || fflush(file) || fseek(file, 0, SEEK_SET)) return NULL;
+  const int saved_stdin = dup(STDIN_FILENO);
+  dup2(fileno(file), STDIN_FILENO);
+  char *result = read_clipboard_hex_from_stdin();
+  dup2(saved_stdin, STDIN_FILENO);
+  close(saved_stdin);
+  fclose(file);
+  return result;
+}
+
+static int check_clipboard_stdin(void) {
+  char *hex = clipboard_hex_from("68690a\n", 7);
+  CHECK(hex && !strcmp(hex, "68690a"));
+  free(hex);
+  CHECK(!clipboard_hex_from("6869zz", 6));
+  CHECK(!clipboard_hex_from("-rf /", 5));
+  static char oversized[CLIPBOARD_STDIN_MAX_HEX + 2];
+  memset(oversized, 'a', sizeof(oversized));
+  CHECK(!clipboard_hex_from(oversized, sizeof(oversized)));
+  return 0;
+}
+
 int main(void) {
   CHECK(!check_display_request_limits());
+  CHECK(!check_clipboard_stdin());
   CHECK(!check_client_termination(SIGTERM, true));
   CHECK(!check_client_termination(SIGTERM, false));
   CHECK(!check_client_termination(SIGINT, false));

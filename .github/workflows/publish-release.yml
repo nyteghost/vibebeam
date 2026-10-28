@@ -58,6 +58,10 @@ jobs:
         shell: bash
         run: |
           run_id="${RUN_ID_INPUT}"
+          if [[ -n "${run_id}" && ! "${run_id}" =~ ^[0-9]+$ ]]; then
+            echo "::error::run_id must be a number (the CI run id from its URL)."
+            exit 1
+          fi
           if [[ -z "${run_id}" ]]; then
             for candidate in $(gh run list --repo "${GITHUB_REPOSITORY}" --workflow ci.yml --status success --limit 30 --json databaseId --jq '.[].databaseId'); do
               count=$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${candidate}/artifacts" \
@@ -79,9 +83,11 @@ jobs:
 
       - name: Download the portable ZIP
         shell: bash
+        env:
+          RUN_ID: ${{ steps.find.outputs.run_id }}
         run: |
           mkdir -p dl
-          gh run download "${{ steps.find.outputs.run_id }}" --repo "${GITHUB_REPOSITORY}" --pattern 'ci-portable-*' --dir dl
+          gh run download "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --pattern 'ci-portable-*' --dir dl
           find dl -type f -name '*.zip' -print
           if [[ -z "$(find dl -type f -name '*.zip')" ]]; then
             echo "::error::The CI run has no portable ZIP artifact."
@@ -90,9 +96,11 @@ jobs:
 
       - name: Download the Arch Linux package (optional)
         shell: bash
+        env:
+          RUN_ID: ${{ steps.find.outputs.run_id }}
         run: |
           mkdir -p dl-arch
-          if gh run download "${{ steps.find.outputs.run_id }}" --repo "${GITHUB_REPOSITORY}" --name build-Archlinux --dir dl-arch; then
+          if gh run download "${RUN_ID}" --repo "${GITHUB_REPOSITORY}" --name build-Archlinux --dir dl-arch; then
             find dl-arch -type f -name '*.pkg.tar.zst' ! -name '*-debug-*' -print
           else
             echo "::warning::No Arch Linux package in this CI run; publishing the Windows ZIP only."
@@ -110,6 +118,8 @@ jobs:
 
       - name: Create or update the release
         shell: bash
+        env:
+          TARGET_SHA: ${{ steps.find.outputs.sha }}
         run: |
           mapfile -t assets < <(find dl -type f -name '*.zip'; find dl-arch -type f -name '*.pkg.tar.zst' ! -name '*-debug-*' 2>/dev/null)
           # Publish checksums so the Linux installer (and anyone downloading by hand) can verify
@@ -126,7 +136,7 @@ jobs:
             gh release upload "${TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
           else
             gh release create "${TAG}" "${assets[@]}" --repo "${GITHUB_REPOSITORY}" \
-              --target "${{ steps.find.outputs.sha }}" --title "${TAG}" --generate-notes "${flags[@]}"
+              --target "${TARGET_SHA}" --title "${TAG}" --generate-notes "${flags[@]}"
           fi
           echo "Release ${TAG} now has:"
           gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" --json assets --jq '.assets[].name'
