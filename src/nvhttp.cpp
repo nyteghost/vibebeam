@@ -6883,6 +6883,152 @@ launch_session->exact_target_hold.reset();
     response->write(SimpleWeb::StatusCode::success_ok, target.filename().string(), headers);
   }
 
+
+#if defined(__linux__)
+  // File downloads expose only the configured receive/share directory and
+  // require the host's explicit "Download files" per-client permission.
+  // Pairing alone does not grant read access.
+  bool authorize_file_download(resp_https_t response, req_https_t request) {
+    const auto client = get_verified_cert(request);
+    if (!has_client_perm(client, PERM::_allow_view) ||
+        !has_client_perm(client, PERM::file_dwnload)) {
+      log_permission_denied("Download File"sv, "Download files"sv, client);
+      response->write(SimpleWeb::StatusCode::client_error_unauthorized);
+      response->close_connection_after_response = true;
+      return false;
+    }
+    const auto uuids = rtsp_stream::get_all_session_uuids();
+    if (std::find(uuids.begin(), uuids.end(), client->uuid) == uuids.end()) {
+      response->write(SimpleWeb::StatusCode::client_error_forbidden);
+      response->close_connection_after_response = true;
+      return false;
+    }
+    return true;
+  }
+
+  void listHostFiles(resp_https_t response, req_https_t request) {
+    if (!authorize_file_download(response, request)) return;
+    print_req<SunshineHTTPS>(request);
+
+    struct entry_t {
+      std::string name;
+      std::uintmax_t size;
+      std::filesystem::file_time_type time;
+    };
+    std::vector<entry_t> entries;
+    std::error_code ec;
+    const auto dir = received_files_dir();
+    std::size_t scanned = 0;
+    for (std::filesystem::directory_iterator it {dir, ec}, end;
+         !ec && it != end && scanned < 5000; it.increment(ec)) {
+      ++scanned;
+      const auto status = it->symlink_status(ec);
+      if (ec) break;
+      if (!std::filesystem::is_regular_file(status)) continue;  // no symlinks
+      const std::string name = it->path().filename().string();
+      if (name.empty() || name.size() > 200 || name != sanitize_upload_name(name)) continue;
+      const auto size = it->file_size(ec);
+      if (ec) break;
+      if (size > file_upload_max_bytes) continue;
+      const auto time = it->last_write_time(ec);
+      if (ec) break;
+      entries.push_back({name, size, time});
+    }
+    std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) {
+      return a.time > b.time;
+    });
+    nlohmann::json body;
+    body["files"] = nlohmann::json::array();
+    for (std::size_t i = 0; i < entries.size() && i < 40; ++i) {
+      body["files"].push_back({{"name", entries[i].name}, {"size", entries[i].size}});
+    }
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json; charset=utf-8");
+    headers.emplace("Cache-Control", "no-store");
+    response->write(SimpleWeb::StatusCode::success_ok,
+                    body.dump(-1, ' ', false, nlohmann::json::error_handler_t::replace), headers);
+    response->close_connection_after_response = true;
+  }
+
+  struct host_file_stream_t {
+    resp_https_t response;
+    int fd = -1;
+    std::uint64_t remaining = 0;
+    std::array<char, 64 * 1024> buffer {};
+    ~host_file_stream_t() { if (fd >= 0) ::close(fd); }
+  };
+
+  void sendHostFileChunk(const std::shared_ptr<host_file_stream_t> &state) {
+    if (!state->remaining) return;
+    const auto wanted = static_cast<std::size_t>(
+      std::min<std::uint64_t>(state->remaining, state->buffer.size()));
+    ssize_t read_bytes = -1;
+    do {
+      read_bytes = ::read(state->fd, state->buffer.data(), wanted);
+    } while (read_bytes < 0 && errno == EINTR);
+    if (read_bytes <= 0) {
+      // A changed file or a disk read error must not be reported as a
+      // successful complete transfer. The client checks Content-Length.
+      state->response->close_connection_after_response = true;
+      return;
+    }
+    state->remaining -= static_cast<std::uint64_t>(read_bytes);
+    state->response->write(state->buffer.data(), read_bytes);
+    if (state->remaining) {
+      state->response->send([state](const auto &error) {
+        if (!error) sendHostFileChunk(state);
+      });
+    }
+  }
+
+  void downloadHostFile(resp_https_t response, req_https_t request) {
+    if (!authorize_file_download(response, request)) return;
+    print_req<SunshineHTTPS>(request);
+
+    const auto args = request->parse_query_string();
+    const auto name = get_arg(args, "name", "");
+    // Never normalize a download request into a *different* file name.
+    if (name.empty() || name.size() > 200 || name != sanitize_upload_name(name) ||
+        name.find_first_of("/\\") != std::string::npos) {
+      response->write(SimpleWeb::StatusCode::client_error_bad_request);
+      return;
+    }
+
+    const auto dir = received_files_dir();
+    const int folder = ::open(dir.c_str(), O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC);
+    if (folder < 0) {
+      response->write(SimpleWeb::StatusCode::server_error_internal_server_error);
+      return;
+    }
+    const int fd = ::openat(folder, name.c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC);
+    ::close(folder);
+    if (fd < 0) {
+      response->write(SimpleWeb::StatusCode::client_error_not_found);
+      return;
+    }
+    struct stat info {};
+    if (::fstat(fd, &info) != 0 || !S_ISREG(info.st_mode) ||
+        info.st_size < 0 ||
+        static_cast<std::uint64_t>(info.st_size) > file_upload_max_bytes) {
+      ::close(fd);
+      response->write(SimpleWeb::StatusCode::client_error_bad_request);
+      return;
+    }
+    auto state = std::make_shared<host_file_stream_t>();
+    state->fd = fd;
+    state->remaining = static_cast<std::uint64_t>(info.st_size);
+    state->response = response;
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/octet-stream");
+    headers.emplace("Content-Length", std::to_string(state->remaining));
+    headers.emplace("Cache-Control", "no-store");
+    headers.emplace("X-Content-Type-Options", "nosniff");
+    response->write(SimpleWeb::StatusCode::success_ok, headers);
+    response->close_connection_after_response = true;
+    sendHostFileChunk(state);
+  }
+#endif
+
   void setBitrate(resp_https_t response, req_https_t request, const verified_client_t &verified_client) {
     print_req<SunshineHTTPS>(request);
 
@@ -7446,6 +7592,10 @@ launch_session->exact_target_hold.reset();
     https_server.resource["^/actions/clipboard$"]["GET"] = getClipboard;
     https_server.resource["^/actions/clipboard$"]["POST"] = setClipboard;
     https_server.resource["^/actions/upload$"]["POST"] = uploadFile;
+#if defined(__linux__)
+    https_server.resource["^/actions/files$"]["GET"] = listHostFiles;
+    https_server.resource["^/actions/download$"]["GET"] = downloadHostFile;
+#endif
     https_server.resource["^/bitrate$"]["GET"] = [run_blocking_nvhttp](auto response, auto request) {
       bitrate_policy::run(
         response, request,
