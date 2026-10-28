@@ -6538,7 +6538,6 @@ namespace confighttp {
 #ifdef _WIN32
     register_api_route("^/api/apps/rtx_hdr/live$", "POST", updateAppRtxHdrLive);
 #endif
-    register_api_route("^/api/logs$", "GET", getLogs);
     register_api_route("^/api/config$", "GET", getConfig);
     register_api_route("^/api/config$", "POST", saveConfig);
     // Partial updates for config settings; merges with existing file and
@@ -6589,7 +6588,6 @@ namespace confighttp {
     register_api_route("^/api/clients/update$", "POST", updateClient);
     register_api_route("^/api/clients/unpair$", "POST", unpair);
     register_api_route("^/api/clients/disconnect$", "POST", disconnectClient);
-    register_api_route("^/api/apps/close$", "POST", closeApp);
     register_api_route("^/api/session/status$", "GET", getSessionStatus);
     register_api_route("^/api/host/stats$", "GET", getHostStats);
     register_api_route("^/api/host/info$", "GET", getHostInfo);
