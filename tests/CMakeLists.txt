@@ -401,6 +401,16 @@ if(SUNSHINE_TEST_ENABLE_COMPONENT)
         LINK_LIBRARIES GTest::gtest Threads::Threads nlohmann_json::nlohmann_json Boost::property_tree OpenSSL::Crypto
     )
     set_tests_properties(test_component_nvhttp_bitrate_policy PROPERTIES TIMEOUT 30)
+    sunshine_add_test_target(
+        NAME test_component_upload_stream_copy
+        CATEGORY component
+        TEST_SOURCES
+            "${CMAKE_CURRENT_LIST_DIR}/tests_main.cpp"
+            "${CMAKE_CURRENT_LIST_DIR}/unit/test_upload_stream_copy.cpp"
+        PRODUCT_SOURCES
+        LINK_LIBRARIES GTest::gtest
+    )
+    set_tests_properties(test_component_upload_stream_copy PROPERTIES TIMEOUT 30)
 endif()
 
 sunshine_add_test_target(
