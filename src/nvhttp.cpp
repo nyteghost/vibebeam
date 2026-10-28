@@ -3,6 +3,7 @@
  * @brief Definitions for the nvhttp (GameStream) server.
  */
 // macros
+#include "upload_stream_copy.h"
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
@@ -6748,19 +6749,10 @@ launch_session->exact_target_hold.reset();
     }
 
     {
-      bool ok = true;
-      auto *body = request->content.rdbuf();
-      std::array<char, 64 * 1024> chunk {};
-      for (;;) {
-        const auto got = body->sgetn(chunk.data(), static_cast<std::streamsize>(chunk.size()));
-        if (got <= 0) {
-          break;
-        }
-        if (std::fwrite(chunk.data(), 1, static_cast<std::size_t>(got), out) != static_cast<std::size_t>(got)) {
-          ok = false;
-          break;
-        }
-      }
+      // Only accept an upload if every byte the HTTP parser received was copied.
+      // An unexpected short body must not leave a partial file that looks complete.
+      const bool copied = upload_io::copy_exact(request->content.rdbuf(), out, content_size);
+      bool ok = copied;
       if (std::fclose(out) != 0) {
         ok = false;
       }
