@@ -127,6 +127,9 @@ export async function apiRequest<T>(
       return apiRequest<T>(path, options, false);
     }
     if (response.status === 401 || response.status === 403) clearCsrfToken();
+    if (response.status === 401 && !path.startsWith('/api/auth/')) {
+      window.dispatchEvent(new Event('vibebeam:unauthorized'));
+    }
     throw new ApiError('request-failed', response.status, payload);
   }
 

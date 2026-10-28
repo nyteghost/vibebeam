@@ -23,14 +23,20 @@ namespace confighttp::policy {
     return result;
   }
 
-  AuthResult RequestAuthPolicy::check_basic(const std::string &raw_auth) const {
+  AuthResult RequestAuthPolicy::check_basic(const std::string &raw_auth, const std::string &remote_address) const {
     const auto space = raw_auth.find(' ');
     if (space == std::string::npos || !boost::iequals(raw_auth.substr(0, space), "Basic")) return basic_error();
+    if (_dependencies.credential_attempt_allowed && !_dependencies.credential_attempt_allowed(remote_address)) {
+      return make_error(StatusCode::client_error_too_many_requests, "Too many failed sign-in attempts. Try again later.");
+    }
+    bool valid = false;
     try {
       const auto decoded = _dependencies.decode_base64(raw_auth.substr(space + 1));
       const auto colon = decoded.find(':');
-      if (colon == std::string::npos || !_dependencies.credentials_valid(decoded.substr(0, colon), decoded.substr(colon + 1))) return basic_error();
-    } catch (...) { return basic_error(); }
+      valid = colon != std::string::npos && _dependencies.credentials_valid(decoded.substr(0, colon), decoded.substr(colon + 1));
+    } catch (...) { valid = false; }
+    if (_dependencies.credential_attempt_finished) _dependencies.credential_attempt_finished(remote_address, valid);
+    if (!valid) return basic_error();
     return {true, StatusCode::success_ok, {}, {}};
   }
 
@@ -62,7 +68,7 @@ namespace confighttp::policy {
     if (auth_header.empty()) return make_error(StatusCode::client_error_unauthorized, "Unauthorized");
     if (auth_header.starts_with("Bearer ")) return check_bearer(auth_header, path, method);
     if (auth_header.starts_with("Session ")) return check_session(auth_header);
-    if (const auto space = auth_header.find(' '); space != std::string::npos && boost::iequals(auth_header.substr(0, space), "Basic")) return check_basic(auth_header);
+    if (const auto space = auth_header.find(' '); space != std::string::npos && boost::iequals(auth_header.substr(0, space), "Basic")) return check_basic(auth_header, remote_address);
     return make_error(StatusCode::client_error_unauthorized, "Unauthorized");
   }
 

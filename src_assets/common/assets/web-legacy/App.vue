@@ -66,6 +66,13 @@
                   <ThemeToggle compact />
                 </div>
               </header>
+              <div
+                class="px-4 py-1.5 text-xs text-center border-b border-dark/10 dark:border-light/10 bg-amber-500/10"
+                role="note"
+              >
+                This is the classic interface. It no longer gets new features.
+                <a href="/v2/" class="underline font-medium">Open the new interface</a>
+              </div>
 
               <!-- Content: single shared container around RouterView; width via route meta -->
               <main class="flex-1 overflow-auto">

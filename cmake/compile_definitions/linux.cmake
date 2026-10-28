@@ -379,6 +379,7 @@ list(APPEND PLATFORM_TARGET_FILES
         "${CMAKE_SOURCE_DIR}/src/platform/linux/misc.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/misc.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/clipboard.cpp"
+        "${CMAKE_SOURCE_DIR}/src/platform/linux/display_health.cpp"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/mangohud_policy.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/secure_open.h"
         "${CMAKE_SOURCE_DIR}/src/platform/linux/secure_open.cpp"

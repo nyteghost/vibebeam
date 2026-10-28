@@ -22,6 +22,8 @@ import ClientSettingsEditor, {
   type HdrProfileEntry,
 } from '@/components/devices/ClientSettingsEditor.vue';
 import DisplayTopologyEditor from '@/components/devices/DisplayTopologyEditor.vue';
+import ReceivedFiles from '@/components/devices/ReceivedFiles.vue';
+import TwoFactorSettings from '@/components/settings/TwoFactorSettings.vue';
 import { settingsDefaults } from '@/configs/settingsSchema';
 import { formatRelativeTime } from '@/utils/format';
 
@@ -271,7 +273,7 @@ const filteredDevices = computed(() => {
 
 const PERMISSION_VIEW = 0x02000000;
 const PERMISSION_LAUNCH = 0x04000000;
-const PERMISSION_ALL = 0x071f1f00;
+const PERMISSION_ALL = 0x073f1f00; // includes skip_2fa (0x200000)
 
 function permissionMask(device: PairedDevice): number {
   const parsed = Number(device.perm ?? 0);
@@ -851,6 +853,8 @@ onBeforeUnmount(() => {
     </PageHeader>
 
     <div class="devices-stack">
+      <TwoFactorSettings />
+      <ReceivedFiles />
       <InlineAlert
         v-if="error"
         tone="danger"

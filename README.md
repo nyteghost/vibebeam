@@ -1,12 +1,49 @@
 # Vibebeam
 
-Vibebeam is the companion host for [Vibelight](https://github.com/nyteghost/moonlight-qt). It is an unofficial fork of [Vibepollo](https://github.com/Nonary/Vibepollo) by Nonary, which is based on [Apollo](https://github.com/ClassicOldSong/Apollo) by ClassicOldSong and [Sunshine](https://github.com/LizardByte/Sunshine). All of the host's streaming, capture and display work is theirs; this fork adds a few things for use with Vibelight (text clipboard sync and, over time, file transfer) and changes where updates come from. It is licensed under GPLv3 like the projects it is based on (see [LICENSE](LICENSE)). Please don't report problems with this fork to Nonary or the other upstream projects.
+Vibebeam is the companion host for [Vibelight](https://github.com/nyteghost/vibelight). It is an unofficial fork of [Vibepollo](https://github.com/Nonary/Vibepollo) by Nonary, which is based on [Apollo](https://github.com/ClassicOldSong/Apollo) by ClassicOldSong and [Sunshine](https://github.com/LizardByte/Sunshine). All of the host's streaming, capture and display work is theirs; this fork adds a few things for use with Vibelight (see [What Vibebeam adds](#what-vibebeam-adds)) and changes where updates come from. It is licensed under GPLv3 like the projects it is based on (see [LICENSE](LICENSE)). Please don't report problems with this fork to Nonary or the other upstream projects.
 
 A scheduled workflow keeps a branch named `upstream-main` identical to Nonary's Vibepollo and opens a pull request here when there are new changes.
 
+## What Vibebeam adds
+
+- **Two-factor code to connect (optional).** In the web console, **Require 2FA to connect** shows a QR code to scan with any authenticator app, asks for one code to confirm, and gives you eight one-time backup codes. Vibelight then asks for the six-digit code each time someone starts or resumes a stream. Each code works once, five wrong tries pause that device for five minutes, and a dropped stream can reconnect for about two minutes without asking again. Apps that cannot type a code (such as stock Moonlight on iOS) need **Exempt from 2FA** turned on for that client. Lost your phone and your backup codes? Run `vibepollo --reset-2fa` on the host (as the same user the service runs as) to turn 2FA off, then set it up again. Turn it off normally with a current or backup code.
+- **Clipboard sync** (text, both ways) with Vibelight, including on Linux, where the root session broker reads and writes the desktop clipboard for the service. Allow it per client under **Read clipboard** and **Set clipboard**.
+- **File drop** from Vibelight (up to 512 MB per file, never overwrites). Allow it per client under **Upload files**. On a Linux install the host service cannot see your home folder, so run `scripts/setup-received-folder.sh` once (as your normal user): it makes the shared folder `/var/lib/vibepollo-received`, lets the service write to it, moves earlier files there and puts a **Received files** shortcut in Documents. It uses its own `vibepollo-received` group, not the `vibepollo` group (which can run the privileged host). Log out and in once afterwards. Without the script, files go to the host's private folder and need `sudo` to open.
+- **Display health** (Linux): the Maintenance page shows whether the virtual-display module is built and loaded, lists the exact commands to fix it, and offers a diagnostics download.
+- **Hardened Linux service:** the host runs as its own user with a locked-down systemd unit, and the few things that need the desktop go through a small root broker with a fixed list of actions.
+- **Checksummed releases:** every release includes `SHA256SUMS`, and the Linux installer and update checks use this repository.
+
+## Install on Linux
+
+```bash
+curl -fsSLO https://raw.githubusercontent.com/nyteghost/vibebeam/master/scripts/linux_install.sh
+sudo bash linux_install.sh
+```
+
+The script checks the requirements, installs the kernel headers and the package, opens the firewall,
+and prints whether a reboot is needed. Reboot after the first installation, and approve Secure Boot
+key enrollment if prompted. The display driver is built with DKMS. Update by installing the
+newer package from the [releases page](https://github.com/nyteghost/vibebeam/releases), which Vibebeam's own update check also uses. Manual steps, verification, and troubleshooting are in the
+[Linux install guide](docs/linux/install.md). AppImage, Flatpak, Debian, Fedora, and Docker builds
+are not part of this beta.
+
+To install a release by hand, download the `vibebeam-*.pkg.tar.zst` and `SHA256SUMS` files from the [releases page](https://github.com/nyteghost/vibebeam/releases), run `sha256sum -c SHA256SUMS --ignore-missing`, then `sudo pacman -U vibebeam-*.pkg.tar.zst`.
+
+The package is named `vibebeam` (it provides and replaces `vibepollo` and `sunshine`). Details, requirements and troubleshooting are in the [Linux install guide](docs/linux/install.md).
+
+## Works with other software
+
+Vibebeam and Vibelight are built so that neither one needs the other.
+
+- **Vibelight works with ordinary Sunshine, Apollo and GameStream hosts.** The extras (clipboard sync, file drop, two-factor codes) switch on only when the host says it supports them, in its server info (`VibebeamFeatures`).
+- **Vibebeam works with ordinary Moonlight clients**, including Moonlight on iOS. Stock Moonlight cannot type a two-factor code, so turn on **Exempt from 2FA** for such a client, or leave 2FA off.
+- A new feature is added only if it keeps both of those true: it must be advertised by one side, used only when the other side advertises it too, and must never change what a stock client or host sees.
+
 ---
 
-# Vibepollo (upstream README)
+# Upstream Vibepollo documentation
+
+> Everything below is the README of [Vibepollo](https://github.com/Nonary/Vibepollo) by Nonary, kept for reference. It describes Vibepollo, not Vibebeam: names, update sources, sponsors and some behaviour differ. What Vibebeam does differently is described above.
 
 ## What is Vibepollo?
 
@@ -67,8 +104,6 @@ Due to the sheer pace and volume of changes I was producing, it became impractic
 
 At this point, Vibepollo differs substantially from upstream Sunshine. At that scale, asking upstream maintainers to accept large backports in one sweep is generally not sustainable, which is why Vibepollo continues as a standalone fork.
 
----
-
 ## Linux (beta)
 
 Vibepollo now runs natively on Linux as a set of machine-wide system services with its own
@@ -87,17 +122,7 @@ client also runs Linux. See [Linux PyroWave](docs/linux/pyrowave.md),
 [PlayStation controllers](docs/linux/playstation-controllers.md), and
 [Steam Big Picture](docs/linux/steam-big-picture.md).
 
-```bash
-curl -fsSLO https://raw.githubusercontent.com/Nonary/Vibepollo/master/scripts/linux_install.sh
-sudo bash linux_install.sh
-```
-
-The script checks the requirements, installs the kernel headers and the package, opens the firewall,
-and prints whether a reboot is needed. Reboot after the first installation, and approve Secure Boot
-key enrollment if prompted. Updates come through a signed pacman repository with a DKMS display
-driver. Manual steps, verification, and troubleshooting are in the
-[Linux install guide](docs/linux/install.md). AppImage, Flatpak, Debian, Fedora, and Docker builds
-are not part of this beta.
+Install steps for Vibebeam (the script, manual install and checksum check) are at the top of this page.
 
 SteamOS development uses a separate [user bundle](packaging/linux/steamos/README.md)
 which leaves the read-only operating system untouched. Its experimental Gaming

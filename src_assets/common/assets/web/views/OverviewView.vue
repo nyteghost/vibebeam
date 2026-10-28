@@ -3,6 +3,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import LinuxCaptureStatus from '@/components/settings/LinuxCaptureStatus.vue';
+import FirstRunChecklist from '@/components/FirstRunChecklist.vue';
 import VirtualDisplayRecovery from '@/components/VirtualDisplayRecovery.vue';
 import { ApiError, apiGet } from '@/api/client';
 import {
@@ -346,6 +347,7 @@ onBeforeUnmount(() => {
       </template>
     </PageHeader>
     <div class="visually-hidden" aria-live="polite" aria-atomic="true">{{ readiness.label }}</div>
+    <FirstRunChecklist />
     <VirtualDisplayRecovery
       v-if="displayRecoverySupported(hostPlatform || system.metadata?.platform || '')"
       @recovered="refresh(true)"
@@ -386,7 +388,11 @@ onBeforeUnmount(() => {
           <RouterLink class="button button--primary" :to="primaryAction.to">
             <UiIcon :name="primaryAction.icon" />{{ primaryAction.label }}
           </RouterLink>
-          <RouterLink v-if="!isStreaming" class="button button--secondary" to="/stream">
+          <RouterLink
+            v-if="!isStreaming && system.browserStreamAvailable !== false"
+            class="button button--secondary"
+            to="/stream"
+          >
             <UiIcon name="play" />{{ t('ui.overview.actions.startBrowserStream') }}
           </RouterLink>
         </div>
@@ -416,9 +422,18 @@ onBeforeUnmount(() => {
           :title="warning.title"
         >
           {{ warning.detail }}
-          <template #actions
-            ><RouterLink :to="warning.to">{{ warning.action }}</RouterLink></template
-          >
+          <template #actions>
+            <button
+              v-if="warning.key === 'partial-data'"
+              type="button"
+              class="overview-retry"
+              :disabled="refreshing"
+              @click="refresh(true)"
+            >
+              {{ refreshing ? t('ui.overview.refreshing') : t('ui.overview.tryAgain') }}
+            </button>
+            <RouterLink :to="warning.to">{{ warning.action }}</RouterLink>
+          </template>
         </InlineAlert>
       </div>
       <InlineAlert
@@ -552,6 +567,22 @@ onBeforeUnmount(() => {
   display: grid;
   gap: var(--vs-space-24);
 }
+.overview-retry {
+  background: none;
+  border: 0;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  margin-right: 1rem;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.overview-retry:disabled {
+  cursor: default;
+  opacity: 0.6;
+}
+
 .overview-refresh {
   display: flex;
   flex-wrap: wrap;

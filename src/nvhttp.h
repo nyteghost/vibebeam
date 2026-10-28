@@ -401,4 +401,9 @@ namespace nvhttp {
    * @note Exposed so subsystems (e.g. update) can trigger a save after mutating persisted fields.
    */
   bool save_state();
+
+  /**
+   * @brief Folder where files sent by clients are saved. A relative setting is placed under the config folder.
+   */
+  std::filesystem::path received_files_dir();
 }  // namespace nvhttp

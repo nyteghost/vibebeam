@@ -9,10 +9,11 @@
 // standard includes
 #if !defined(_WIN32)
   #include <fcntl.h>
+  #include <sys/stat.h>
   #include <unistd.h>
 #endif
-#include <algorithm>
 #include <cerrno>
+#include <algorithm>
 #include <array>
 #include <cctype>
 #include <atomic>
@@ -109,6 +110,7 @@
 #include "rtsp_pending_policy.h"
 #include "stream.h"
 #include "system_tray.h"
+#include "two_factor.h"
 #include "video.h"
 #include "webrtc_stream.h"
 #include "zwpad.h"
@@ -116,6 +118,14 @@
 using namespace std::literals;
 
 namespace nvhttp {
+
+  std::filesystem::path received_files_dir() {
+    std::filesystem::path dir = config::sunshine.file_transfer_dir.empty() ? std::filesystem::path {"received-files"} : std::filesystem::path {config::sunshine.file_transfer_dir};
+    if (dir.is_relative()) {
+      dir = platf::appdata() / dir;
+    }
+    return dir;
+  }
 
   namespace {
     struct remote_role_owner_t {
@@ -293,6 +303,47 @@ namespace nvhttp {
   static std::string otp_passphrase;
   static std::string otp_device_name;
   static std::chrono::time_point<std::chrono::steady_clock> otp_creation_time;
+
+  namespace {
+    /**
+     * @brief Monitors a paired client may choose from (Vibelight's monitor picker): the host's
+     *        real displays. Virtual and managed private displays are left out; they have their
+     *        own settings.
+     * @return pairs of (device id, readable name)
+     */
+    std::vector<std::pair<std::string, std::string>> selectable_monitors() {
+      std::vector<std::pair<std::string, std::string>> result;
+      try {
+        const auto devices = display_helper_integration::enumerate_devices(display_device::DeviceEnumerationDetail::Minimal);
+        if (!devices) {
+          return result;
+        }
+        for (const auto &device : *devices) {
+          if (device.m_device_id.empty()) {
+            continue;
+          }
+#ifdef _WIN32
+          // Windows only fills in the display details for active displays
+          if (!device.m_info || VDISPLAY::is_virtual_display_output(device.m_device_id)) {
+            continue;
+          }
+#else
+          if (platf::linux_private_display::is_private_output(device.m_device_id) || platf::linux_private_display::is_kernel_output(device.m_device_id)) {
+            continue;
+          }
+#endif
+          std::string name = !device.m_friendly_name.empty() ? device.m_friendly_name : device.m_display_name;
+          if (name.empty()) {
+            name = device.m_device_id;
+          }
+          result.emplace_back(device.m_device_id, std::move(name));
+        }
+      } catch (const std::exception &e) {
+        BOOST_LOG(warning) << "Could not list monitors: "sv << e.what();
+      }
+      return result;
+    }
+  }  // namespace
 
 #ifdef _WIN32
   namespace {
@@ -2439,7 +2490,7 @@ namespace nvhttp {
               named_cert_p->output_name_override = el.value("output_name_override", "");
               named_cert_p->virtual_display_mode_override = el.value("virtual_display_mode", "");
               named_cert_p->virtual_display_layout_override = el.value("virtual_display_layout", "");
-              named_cert_p->perm = (PERM) (util::get_non_string_json_value<uint32_t>(el, "perm", (uint32_t) PERM::_all)) & PERM::_all;
+              named_cert_p->perm = (PERM) (util::get_non_string_json_value<uint32_t>(el, "perm", (uint32_t) PERM::_all)) & PERM::_all_persisted;
               // Imported Vibeshine pairings use a boolean instead of Apollo's
               // permission mask. Never reactivate a disabled imported client.
               if (!util::get_non_string_json_value<bool>(el, "enabled", true)) {
@@ -3099,6 +3150,21 @@ namespace nvhttp {
         launch_session->output_name_override = verified_client->output_name_override;
       }
 
+      // Vibelight's monitor picker: use the monitor the client asked for, but only if it is one of
+      // the host's real, active displays. Anything else is ignored and the host's own choice stands.
+      if (const auto monitor_arg = args.find("vibeMonitor"); monitor_arg != std::end(args) && !monitor_arg->second.empty()) {
+        const auto monitors = selectable_monitors();
+        const auto chosen = std::find_if(monitors.begin(), monitors.end(), [&](const auto &monitor) {
+          return monitor.first == monitor_arg->second;
+        });
+        if (chosen != monitors.end()) {
+          launch_session->output_name_override = chosen->first;
+          BOOST_LOG(info) << "Client ["sv << verified_client->name << "] chose monitor ["sv << chosen->second << "]"sv;
+        } else {
+          BOOST_LOG(warning) << "Client ["sv << verified_client->name << "] asked for a monitor this host does not offer; ignoring"sv;
+        }
+      }
+
       if (const auto virtual_display_arg = args.find("virtualDisplay"); virtual_display_arg != std::end(args)) {
         launch_session->client_virtual_display_override = util::from_view(virtual_display_arg->second) != 0;
         if (!*launch_session->client_virtual_display_override) {
@@ -3569,6 +3635,26 @@ namespace nvhttp {
       return !!(client_perm(verified_client) & perm);
     }
 
+    /**
+     * @brief Vibebeam two-factor gate for launch/resume. Fills `tree` and returns true when the request must stop.
+     */
+    template<class Request>
+    bool reject_for_two_factor(pt::ptree &tree, const Request &request, const verified_client_t &verified_client, const std::string &client_uuid) {
+      const auto args = request->parse_query_string();
+      const auto code = get_arg(args, std::string(two_factor::kCodeParameter).c_str(), "");
+      const auto outcome = two_factor::check(client_uuid, code, has_client_perm(verified_client, PERM::skip_2fa));
+      if (outcome == two_factor::result_e::ok) {
+        return false;
+      }
+      if (outcome != two_factor::result_e::required) {
+        BOOST_LOG(warning) << "Two-factor code refused for client "sv << client_uuid << ": "sv << two_factor::status_message(outcome);
+      }
+      tree.put("root.resume", 0);
+      tree.put("root.<xmlattr>.status_code", two_factor::status_code(outcome));
+      tree.put("root.<xmlattr>.status_message", two_factor::status_message(outcome));
+      return true;
+    }
+
     // Require current certificate-bound authority with View or Launch permission.
     hardware_metrics::access_t hardware_metrics_access(req_https_t request) {
       const auto settings = config::get_hardware_metrics_settings();
@@ -3687,6 +3773,10 @@ namespace nvhttp {
       if (!query.empty()) {
         BOOST_LOG(verbose) << "Query Params:"sv;
         for (auto &[name, val] : query) {
+          if (name == two_factor::kCodeParameter) {
+            BOOST_LOG(verbose) << name << " -- (hidden)"sv;
+            continue;
+          }
           BOOST_LOG(verbose) << name << " -- " << val;
         }
       }
@@ -4011,9 +4101,9 @@ namespace nvhttp {
       tree.put("root.VibebeamVersion", VERSION);
 #if defined(__linux__)
       // A Linux host can only sync the clipboard when a usable backend was found.
-      tree.put("root.VibebeamFeatures", platf::clipboard_backend_name().empty() ? "files" : "clipboard,files");
+      tree.put("root.VibebeamFeatures", platf::clipboard_backend_name().empty() ? "files,monitors" : "clipboard,files,monitors");
 #else
-      tree.put("root.VibebeamFeatures", "clipboard,files");
+      tree.put("root.VibebeamFeatures", "clipboard,files,monitors");
 #endif
 #if defined(_WIN32)
       tree.put("root.VibebeamHostOS", "windows");
@@ -4594,6 +4684,9 @@ namespace nvhttp {
         tree.put("root.resume", 0);
         tree.put("root.<xmlattr>.status_code", 403);
         tree.put("root.<xmlattr>.status_message", "A paired TLS client identity is required");
+        return;
+      }
+      if (reject_for_two_factor(tree, request, verified_client, request_client_identity.uuid)) {
         return;
       }
 
@@ -5638,6 +5731,9 @@ launch_session->exact_target_hold.reset();
       tree.put("root.<xmlattr>.status_code", 403);
       tree.put("root.<xmlattr>.status_message", permission_denied_status_message(verified_client, "View stream"sv));
 
+      return;
+    }
+    if (reject_for_two_factor(tree, request, verified_client, request_client_identity.uuid)) {
       return;
     }
 
@@ -6711,7 +6807,7 @@ launch_session->exact_target_hold.reset();
     }
 
     std::error_code ec;
-    std::filesystem::path dir = config::sunshine.file_transfer_dir;
+    std::filesystem::path dir = received_files_dir();
     std::filesystem::create_directories(dir, ec);
     if (ec) {
       BOOST_LOG(warning) << "[file] Cannot create the receive folder ["sv << dir.string() << "]: "sv << ec.message() << "; trying the config folder instead"sv;
@@ -6753,6 +6849,13 @@ launch_session->exact_target_hold.reset();
       // An unexpected short body must not leave a partial file that looks complete.
       const bool copied = upload_io::copy_exact(request->content.rdbuf(), out, content_size);
       bool ok = copied;
+#if !defined(_WIN32)
+      // Set receive permissions on the original inode, not a replaceable
+      // directory entry. The host's private umask otherwise blocks readers.
+      if (ok && ::fchmod(::fileno(out), 0644) != 0) {
+        ok = false;
+      }
+#endif
       if (std::fclose(out) != 0) {
         ok = false;
       }
@@ -6765,6 +6868,14 @@ launch_session->exact_target_hold.reset();
       }
     }
     mark_upload_from_network(target);
+
+#ifdef _WIN32
+    // The service runs with a private umask, which would leave the file unreadable to the
+    // person it was sent to when the folder lives in their account. Make it world-readable
+    // (never executable); the folder's own permissions still decide who can reach it.
+    std::filesystem::permissions(target, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::group_read | std::filesystem::perms::others_read, std::filesystem::perm_options::replace, ec);
+
+#endif
 
     BOOST_LOG(info) << "[file] Received ["sv << target.filename().string() << "] ("sv << content_size << " bytes) from ["sv << verified_client->name << "] into "sv << dir.string();
     SimpleWeb::CaseInsensitiveMultimap headers;
@@ -6831,6 +6942,35 @@ launch_session->exact_target_hold.reset();
     BOOST_LOG(info) << "Client ["sv << verified_client->name << "] set runtime bitrate to "sv << applied << " kbps ("sv << updated << " session(s))"sv;
     tree.put("root.bitrate", applied);
     tree.put("root.<xmlattr>.status_code", 200);
+  }
+
+  /**
+   * @brief List the monitors a paired client can choose to stream (Vibelight's monitor picker).
+   *        Read-only. Needs the same permission as viewing a stream.
+   */
+  void getMonitors(resp_https_t response, req_https_t request) {
+    print_req<SunshineHTTPS>(request);
+
+    auto verified_client = get_verified_cert(request);
+    if (!has_client_perm(verified_client, PERM::_allow_view)) {
+      log_permission_denied("Monitors"sv, "View stream"sv, verified_client, true);
+      response->write(SimpleWeb::StatusCode::client_error_unauthorized);
+      response->close_connection_after_response = true;
+      return;
+    }
+
+    pt::ptree tree;
+    tree.put("root.<xmlattr>.status_code", 200);
+    for (const auto &[id, name] : selectable_monitors()) {
+      pt::ptree item;
+      item.put("id", id);
+      item.put("name", name);
+      tree.add_child("root.monitor", item);
+    }
+    std::ostringstream data;
+    pt::write_xml(data, tree);
+    response->write(data.str());
+    response->close_connection_after_response = true;
   }
 
   void getAbrCapabilities(resp_https_t response, req_https_t request) {
@@ -7033,6 +7173,7 @@ launch_session->exact_target_hold.reset();
 
   void start() {
     platf::set_thread_name("nvhttp");
+    two_factor::set_state_path(platf::appdata() / "two_factor.json");
 #if defined(__linux__)
     log_linux_host_checks();
 #endif
@@ -7319,6 +7460,7 @@ launch_session->exact_target_hold.reset();
         }
       );
     };
+    https_server.resource["^/vibebeam/monitors$"]["GET"] = getMonitors;
     https_server.resource["^/api/abr/capabilities$"]["GET"] = getAbrCapabilities;
     https_server.resource["^/pyrowave-bandwidth-probe$"]["GET"] = getPyroWaveBandwidthProbe;
     https_server.resource["^/pyrowave-udp-probe$"]["GET"] = [run_blocking_nvhttp](auto resp, auto req) {

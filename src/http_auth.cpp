@@ -6,6 +6,7 @@
 #include "confighttp.h"
 #include "crypto.h"
 #include "httpcommon.h"
+#include "login_throttle.h"
 #include "logging.h"
 #include "network.h"
 #include "nvhttp.h"
@@ -1089,8 +1090,14 @@ namespace confighttp {
       _session_manager(session_manager) {}
 
   APIResponse SessionTokenAPI::login(const std::string &username, const std::string &password, const std::string &redirect_url, bool remember_me, const std::string &user_agent, const std::string &remote_address) {
-    if (!validate_credentials(username, password)) {
-      BOOST_LOG(info) << "Configuration API: Login failed for user: " << username;
+    if (const auto gate = login_throttle::check(remote_address); !gate.allowed) {
+      BOOST_LOG(warning) << "Configuration API: sign-in from ["sv << remote_address << "] refused for "sv << gate.retry_after_seconds << " more seconds after repeated failures"sv;
+      return create_error_response("Too many failed sign-in attempts. Try again in " + std::to_string(gate.retry_after_seconds) + " seconds.", StatusCode::client_error_too_many_requests);
+    }
+    const bool credentials_ok = validate_credentials(username, password);
+    login_throttle::record(remote_address, credentials_ok);
+    if (!credentials_ok) {
+      BOOST_LOG(info) << "Configuration API: Login failed for a user from ["sv << remote_address << "]"sv;
       return create_error_response("Invalid credentials", StatusCode::client_error_unauthorized);
     }
 
@@ -1300,6 +1307,8 @@ namespace confighttp {
       dependencies.decode_base64 = [](const std::string &encoded) { return SimpleWeb::Crypto::Base64::decode(encoded); };
       dependencies.cookie_unescape = [](const std::string &value) { return http::cookie_unescape(value); };
       dependencies.https_port = [] { return net::map_port(confighttp::PORT_HTTPS); };
+      dependencies.credential_attempt_allowed = [](const std::string &address) { return login_throttle::check(address).allowed; };
+      dependencies.credential_attempt_finished = [](const std::string &address, bool ok) { login_throttle::record(address, ok); };
       return policy::RequestAuthPolicy(std::move(dependencies));
     }
 

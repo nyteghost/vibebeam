@@ -85,6 +85,7 @@
   #include "platform/linux/capture_status.h"
   #include "platform/linux/private_display.h"
   #include "src/platform/linux/display_backend.h"
+  #include "src/platform/linux/display_health.h"
 #endif
 
 #include <nlohmann/json.hpp>
@@ -108,6 +109,7 @@
 #endif
 #include "display_helper_integration.h"
 #include "process.h"
+#include "two_factor.h"
 #include "utility.h"
 #include "uuid.h"
 
@@ -1600,6 +1602,12 @@ namespace confighttp {
       return;
     }
 
+    // The v2 UI is the default front door. "/?classic" keeps the classic UI reachable.
+    if (path_view == "/" && request->query_string.find("classic") == std::string::npos) {
+      send_redirect(std::move(response), std::move(request), "/v2/");
+      return;
+    }
+
     const bool is_v2_route = path_view == "/v2" || path_view.starts_with("/v2/");
     const bool is_v2_static_path = path_view == "/v2/assets" || path_view.starts_with("/v2/assets/") ||
                                    path_view == "/v2/images" || path_view.starts_with("/v2/images/");
@@ -2999,7 +3007,7 @@ namespace confighttp {
       std::string virtual_display_layout = input_tree.value("virtual_display_layout", "");
       auto do_cmds = nvhttp::extract_command_entries(input_tree, "do");
       auto undo_cmds = nvhttp::extract_command_entries(input_tree, "undo");
-      auto perm = static_cast<crypto::PERM>(input_tree.value("perm", static_cast<uint32_t>(crypto::PERM::_no)) & static_cast<uint32_t>(crypto::PERM::_all));
+      auto perm = static_cast<crypto::PERM>(input_tree.value("perm", static_cast<uint32_t>(crypto::PERM::_no)) & static_cast<uint32_t>(crypto::PERM::_all_persisted));
       bool updated = nvhttp::update_device_info(
         uuid,
         name,
@@ -4719,6 +4727,191 @@ namespace confighttp {
 #endif
 
   /**
+   * @brief Two-factor status for the web console.
+   * @api_examples{/api/two-factor| GET| null}
+   */
+  void getReceivedFiles(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    const auto dir = nvhttp::received_files_dir();
+    nlohmann::json out;
+    out["path"] = dir.string();
+    out["files"] = nlohmann::json::array();
+
+    struct entry_t {
+      std::string name;
+      std::uintmax_t size;
+      std::int64_t modified;
+    };
+    std::vector<entry_t> entries;
+    std::error_code ec;
+    for (std::filesystem::directory_iterator it {dir, ec}, end; !ec && it != end && entries.size() < 5000; it.increment(ec)) {
+      std::error_code entry_ec;
+      if (!it->is_regular_file(entry_ec) || entry_ec) {
+        continue;
+      }
+      const auto size = it->file_size(entry_ec);
+      const auto time = std::filesystem::last_write_time(it->path(), entry_ec);
+      if (entry_ec) {
+        continue;
+      }
+      const auto unix_time = std::chrono::duration_cast<std::chrono::seconds>(
+        std::chrono::clock_cast<std::chrono::system_clock>(time).time_since_epoch()
+      ).count();
+      entries.push_back({it->path().filename().string(), size, static_cast<std::int64_t>(unix_time)});
+    }
+    std::ranges::sort(entries, [](const entry_t &a, const entry_t &b) {
+      return a.modified > b.modified;
+    });
+    out["total"] = entries.size();
+    for (std::size_t i = 0; i < entries.size() && i < 20; ++i) {
+      out["files"].push_back({{"name", entries[i].name}, {"size", entries[i].size}, {"modified", entries[i].modified}});
+    }
+    send_response(response, out);
+  }
+
+  void getTwoFactorStatus(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    const auto status = two_factor::status();
+    nlohmann::json out;
+    out["enabled"] = status.enabled;
+    out["setup_pending"] = status.setup_pending;
+    out["backup_codes_remaining"] = status.backup_codes_remaining;
+    send_response(response, out);
+  }
+
+  /**
+   * @brief Start two-factor enrolment; returns the secret and an otpauth:// URI for the QR code.
+   * @api_examples{/api/two-factor/setup| POST| {}}
+   */
+  void postTwoFactorSetup(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json") || !authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    if (two_factor::enabled()) {
+      bad_request(response, request, "Two-factor is already on; turn it off first to set it up again");
+      return;
+    }
+    send_response(response, two_factor::begin_setup(config::nvhttp.sunshine_name));
+  }
+
+  /**
+   * @brief Confirm enrolment with one code; returns the one-time backup codes.
+   * @api_examples{/api/two-factor/enable| POST| {"code":"123456"}}
+   */
+  void postTwoFactorEnable(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json") || !authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      const nlohmann::json input = nlohmann::json::parse(ss);
+      auto codes = two_factor::confirm_setup(input.value("code", ""));
+      if (!codes) {
+        bad_request(response, request, "That code was not accepted. Check the clock on your phone and try again, or start the setup again.");
+        return;
+      }
+      BOOST_LOG(info) << "Two-factor is now required to connect"sv;
+      nlohmann::json out;
+      out["status"] = true;
+      out["backup_codes"] = *codes;
+      send_response(response, out);
+    } catch (std::exception &e) {
+      bad_request(response, request, e.what());
+    }
+  }
+
+  /**
+   * @brief Turn two-factor off; needs a current code or a backup code.
+   * @api_examples{/api/two-factor/disable| POST| {"code":"123456"}}
+   */
+  void postTwoFactorDisable(resp_https_t response, req_https_t request) {
+    if (!check_content_type(response, request, "application/json") || !authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    std::stringstream ss;
+    ss << request->content.rdbuf();
+    try {
+      const nlohmann::json input = nlohmann::json::parse(ss);
+      const auto result = two_factor::disable(input.value("code", ""));
+      if (result != two_factor::result_e::ok) {
+        bad_request(response, request, two_factor::status_message(result));
+        return;
+      }
+      BOOST_LOG(info) << "Two-factor is now off"sv;
+      nlohmann::json out;
+      out["status"] = true;
+      send_response(response, out);
+    } catch (std::exception &e) {
+      bad_request(response, request, e.what());
+    }
+  }
+
+#if defined(__linux__)
+  /**
+   * @brief Explain whether the Linux virtual display can work (read-only, no privileges needed).
+   * @api_examples{/api/linux/display-health| GET| null}
+   */
+  void getLinuxDisplayHealth(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+    send_response(response, platf::linux_display_health::collect());
+  }
+
+  /**
+   * @brief Plain-text diagnostics bundle: version, display health and the end of the host log.
+   * @api_examples{/api/linux/diagnostics| GET| null}
+   */
+  void getLinuxDiagnostics(resp_https_t response, req_https_t request) {
+    if (!authenticate(response, request)) {
+      return;
+    }
+    print_req(request);
+
+    std::ostringstream text;
+    text << "Vibebeam diagnostics\n";
+    text << "Version: " << PROJECT_VERSION << "\n\n";
+    text << platf::linux_display_health::to_text(platf::linux_display_health::collect()) << "\n";
+    text << "---- last host log lines ----\n";
+    const auto log_path = logging::current_log_file();
+    if (!log_path.empty()) {
+      const auto content = file_handler::read_file(log_path.string().c_str());
+      constexpr std::size_t max_lines = 400;
+      std::size_t cursor = content.size();
+      std::size_t lines = 0;
+      while (cursor > 0 && lines < max_lines) {
+        const auto newline = content.rfind('\n', cursor - 1);
+        if (newline == std::string::npos) {
+          cursor = 0;
+          break;
+        }
+        cursor = newline;
+        ++lines;
+      }
+      text << content.substr(cursor == 0 ? 0 : cursor + 1);
+    }
+
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "text/plain; charset=utf-8");
+    headers.emplace("Content-Disposition", "attachment; filename=\"vibebeam-diagnostics.txt\"");
+    headers.emplace("X-Frame-Options", "DENY");
+    headers.emplace("Cache-Control", "no-store");
+    response->write(SimpleWeb::StatusCode::success_ok, text.str(), headers);
+  }
+#endif
+
+  /**
    * @brief Get the logs from the log file.
    * @param response The HTTP response object.
    * @param request The HTTP request object.
@@ -6230,6 +6423,7 @@ namespace confighttp {
   }
 
   void start() {
+    two_factor::set_state_path(platf::appdata() / "two_factor.json");
     platf::set_thread_name("confighttp");
     auto shutdown_event = mail::man->event<bool>(mail::shutdown);
     auto port_https = net::map_port(PORT_HTTPS);
@@ -6323,7 +6517,16 @@ namespace confighttp {
     register_api_route("^/api/pin$", "POST", savePin);
     register_api_route("^/api/otp$", "POST", getOTP);
     register_api_route("^/api/apps$", "GET", getApps);
+    register_api_route("^/api/files/received$", "GET", getReceivedFiles);
+    register_api_route("^/api/two-factor$", "GET", getTwoFactorStatus);
+    register_api_route("^/api/two-factor/setup$", "POST", postTwoFactorSetup);
+    register_api_route("^/api/two-factor/enable$", "POST", postTwoFactorEnable);
+    register_api_route("^/api/two-factor/disable$", "POST", postTwoFactorDisable);
     register_api_route("^/api/logs$", "GET", getLogs);
+#if defined(__linux__)
+    register_api_route("^/api/linux/display-health$", "GET", getLinuxDisplayHealth);
+    register_api_route("^/api/linux/diagnostics$", "GET", getLinuxDiagnostics);
+#endif
     register_api_route("^/api/browse$", "GET", browseDirectory);
     register_api_route("^/api/csrf-token$", "GET", getCSRFToken);
     register_api_route("^/api/apps$", "POST", saveApp);

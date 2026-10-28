@@ -367,6 +367,28 @@ sunshine_add_test_target(
     DEPENDENCIES
 )
 
+sunshine_add_test_target(
+    NAME test_fast_login_throttle
+    CATEGORY fast
+    TEST_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/tests_main.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/unit/test_login_throttle.cpp"
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/login_throttle.cpp"
+    LINK_LIBRARIES GTest::gtest
+    DEPENDENCIES
+)
+
+sunshine_add_test_target(
+    NAME test_fast_two_factor
+    CATEGORY fast
+    TEST_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/tests_main.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/unit/test_two_factor.cpp"
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/two_factor.cpp"
+    LINK_LIBRARIES GTest::gtest nlohmann_json::nlohmann_json OpenSSL::Crypto
+    DEPENDENCIES
+)
+
 if(SUNSHINE_TEST_ENABLE_COMPONENT)
     find_package(Threads REQUIRED)
     sunshine_add_test_target(

@@ -26,6 +26,10 @@
 #include <unordered_set>
 #include <utility>
 
+#ifdef __linux__
+  #include <unistd.h>
+#endif
+
 // lib includes
 #include <boost/asio.hpp>
 #include <boost/algorithm/string.hpp>
@@ -2132,9 +2136,15 @@ namespace config {
     string_f(vars, "sunshine_name", nvhttp.sunshine_name);
     path_f(vars, "log_path", config::sunshine.log_file);
 #if defined(__linux__)
-    // Files sent from Vibelight land in ~/Downloads/Vibebeam unless the user chose a folder.
+    // Files sent from Vibelight land in the shared folder /var/lib/vibepollo-received when it has been
+    // set up (see the README) and the service can write to it, otherwise in ~/Downloads/Vibebeam,
+    // unless the user chose a folder.
     if (vars.find("file_transfer_dir") == vars.end()) {
-      if (const char *home = std::getenv("HOME"); home && *home) {
+      const std::filesystem::path shared_dir {"/var/lib/vibepollo-received"};
+      std::error_code shared_ec;
+      if (std::filesystem::is_directory(shared_dir, shared_ec) && ::access(shared_dir.c_str(), W_OK | X_OK) == 0) {
+        config::sunshine.file_transfer_dir = shared_dir.string();
+      } else if (const char *home = std::getenv("HOME"); home && *home) {
         config::sunshine.file_transfer_dir = (std::filesystem::path(home) / "Downloads" / "Vibebeam").string();
       }
     }

@@ -830,6 +830,7 @@
       </div>
     </n-card>
 
+    <TwoFactorCard />
     <TrustedDevicesCard />
     <section ref="apiTokensSectionRef" id="clients-api-tokens" class="clients-api-section">
       <ApiTokenManager />
@@ -934,6 +935,7 @@ import {
 } from 'naive-ui';
 import ApiTokenManager from '@/ApiTokenManager.vue';
 import TrustedDevicesCard from '@/components/TrustedDevicesCard.vue';
+import TwoFactorCard from '@/components/TwoFactorCard.vue';
 import AppEditConfigOverridesSection from '@/components/app-edit/AppEditConfigOverridesSection.vue';
 import { useAuthStore } from '@/stores/auth';
 import { toIntlLocale } from '@/utils/intlLocale';
@@ -957,7 +959,9 @@ type PermissionToggleKey =
   | 'launch'
   | 'clipboard_set'
   | 'clipboard_read'
+  | 'file_upload'
   | 'server_cmd'
+  | 'skip_2fa'
   | 'input_controller'
   | 'input_touch'
   | 'input_pen'
@@ -982,6 +986,7 @@ const permissionMapping = {
   file_upload: 0x00040000,
   file_dwnload: 0x00080000,
   server_cmd: 0x00100000,
+  skip_2fa: 0x00200000,
   _all_operations: 0x001f0000,
   list: 0x01000000,
   view: 0x02000000,
@@ -1009,7 +1014,9 @@ const permissionGroups: PermissionGroup[] = [
     permissions: [
       { key: 'clipboard_set', suppressedBy: [] },
       { key: 'clipboard_read', suppressedBy: [] },
+      { key: 'file_upload', suppressedBy: [] },
       { key: 'server_cmd', suppressedBy: [] },
+      { key: 'skip_2fa', suppressedBy: [] },
     ],
   },
   {
@@ -1982,7 +1989,7 @@ async function saveClient(client: ClientViewModel): Promise<void> {
       name: (client.editName || '').trim(),
       hdr_profile: String(client.editHdrProfile ?? '').trim(),
       display_mode: (client.editDisplayMode || '').trim(),
-      perm: client.editPerm & permissionMapping._all,
+      perm: client.editPerm & (permissionMapping._all | permissionMapping.skip_2fa),
       allow_client_commands: !!client.editAllowClientCommands,
       do: client.editDoCommands.reduce((result: ClientCommandEntry[], entry) => {
         const cmd = String(entry?.cmd ?? '').trim();

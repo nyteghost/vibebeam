@@ -276,7 +276,7 @@ namespace pairing_recovery {
         return false;
       }
       const auto permissions = static_cast<crypto::PERM>(util::get_non_string_json_value<std::uint32_t>(
-        record, "perm", static_cast<std::uint32_t>(crypto::PERM::_all))) & crypto::PERM::_all;
+        record, "perm", static_cast<std::uint32_t>(crypto::PERM::_all))) & crypto::PERM::_all_persisted;
       return !!permissions;
     }
 

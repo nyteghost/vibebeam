@@ -4,6 +4,7 @@ import { useI18n } from 'vue-i18n';
 
 import ReleaseNotes from '@/components/settings/ReleaseNotes.vue';
 import LinuxCaptureStatus from '@/components/settings/LinuxCaptureStatus.vue';
+import LinuxDisplayHealth from '@/components/settings/LinuxDisplayHealth.vue';
 import { ApiError, apiDelete, apiGet, apiPost } from '@/api/client';
 import {
   AppButton,
@@ -778,6 +779,7 @@ onBeforeUnmount(() => {
             metadata.capture_status?.virtual_display_configured === false ? 'disabled' : undefined
           "
         />
+        <LinuxDisplayHealth />
         <div class="maintenance-actions">
           <RouterLink class="button button--secondary" to="/settings?category=display">{{
             t('ui.maintenance.linux.display')

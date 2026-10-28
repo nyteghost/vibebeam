@@ -12,6 +12,10 @@ namespace confighttp::policy {
     boost::function<std::string(const std::string &)> decode_base64;
     boost::function<std::string(const std::string &)> cookie_unescape;
     boost::function<std::uint16_t()> https_port;
+    // Optional password-guessing throttle (left empty, nothing is throttled): is this address
+    // allowed to try a password, and what was the outcome of the attempt.
+    boost::function<bool(const std::string &)> credential_attempt_allowed;
+    boost::function<void(const std::string &, bool)> credential_attempt_finished;
   };
 
   class RequestAuthPolicy {
@@ -26,7 +30,7 @@ namespace confighttp::policy {
 
   private:
     AuthResult basic_error() const;
-    AuthResult check_basic(const std::string &raw_auth) const;
+    AuthResult check_basic(const std::string &raw_auth, const std::string &remote_address) const;
     RequestAuthDependencies _dependencies;
   };
 }  // namespace confighttp::policy

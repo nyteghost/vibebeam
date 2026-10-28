@@ -370,4 +370,36 @@ namespace confighttp {
     EXPECT_EQ(extracted, raw_token);
   }
 
+
+  TEST(ConfigHttpAuthThrottleTest, given_blocked_address_when_basic_auth_then_refused_without_checking_password) {
+    int password_checks = 0;
+    bool blocked = false;
+    std::vector<bool> outcomes;
+    policy::RequestAuthDependencies deps;
+    deps.remote_allowed = [](const std::string &) { return true; };
+    deps.credentials_configured = [] { return true; };
+    deps.credentials_valid = [&](const std::string &username, const std::string &password) {
+      ++password_checks;
+      return username == "testuser" && password == "testpass";
+    };
+    deps.bearer_valid = [](const std::string &, const std::string &, const std::string &) { return false; };
+    deps.session_valid = [](const std::string &) { return false; };
+    deps.decode_base64 = [](const std::string &value) { return value; };
+    deps.cookie_unescape = [](const std::string &value) { return value; };
+    deps.https_port = [] { return std::uint16_t {47990}; };
+    deps.credential_attempt_allowed = [&](const std::string &) { return !blocked; };
+    deps.credential_attempt_finished = [&](const std::string &, bool ok) { outcomes.push_back(ok); };
+    policy::RequestAuthPolicy auth(std::move(deps));
+
+    EXPECT_FALSE(auth.check("10.0.0.9", "Basic testuser:wrong", "/api/apps", "GET").ok);
+    EXPECT_TRUE(auth.check("10.0.0.9", "Basic testuser:testpass", "/api/apps", "GET").ok);
+    EXPECT_EQ(outcomes, (std::vector<bool> {false, true}));
+
+    blocked = true;
+    const auto refused = auth.check("10.0.0.9", "Basic testuser:testpass", "/api/apps", "GET");
+    EXPECT_FALSE(refused.ok);
+    EXPECT_EQ(refused.code, SimpleWeb::StatusCode::client_error_too_many_requests);
+    EXPECT_EQ(password_checks, 2);  // the blocked attempt never reached the password check
+  }
+
 }  // namespace confighttp
