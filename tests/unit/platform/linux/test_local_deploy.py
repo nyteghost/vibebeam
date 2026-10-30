@@ -383,7 +383,7 @@ class NativePackageTests(unittest.TestCase):
                 self.assertEqual(result.getmember('usr/bin/vibepollo').linkname, f'vibepollo-{VERSION}')
             if deploy.shutil.which('pacman'):
                 self.assertEqual(deploy.run('pacman', '-Qp', '--', destination, stderr=deploy.subprocess.PIPE).stdout.strip(),
-                                 'vibepollo ' + deploy.arch_package_version(VERSION))
+                                 'vibebeam ' + deploy.arch_package_version(VERSION))
 
     def test_package_metadata_rejects_shell_expansion_and_missing_arrays(self):
         for recipe in ('depends=("$(id)")', 'depends=("${extra}")', ''):
@@ -401,7 +401,7 @@ class NativePackageTests(unittest.TestCase):
                                    timeout=30, yes=True)
             with mock.patch.object(deploy, 'STATE', state), \
                     mock.patch.object(deploy, 'run', return_value=SimpleNamespace(
-                        stdout='vibepollo ' + deploy.arch_package_version(VERSION))), \
+                        stdout='vibebeam ' + deploy.arch_package_version(VERSION))), \
                     mock.patch.object(deploy, 'logged_install', return_value=0) as install, \
                     mock.patch.object(deploy, 'package_readiness', return_value=0), \
                     mock.patch.object(deploy.pwd, 'getpwnam', side_effect=KeyError):

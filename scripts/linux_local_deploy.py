@@ -1094,8 +1094,8 @@ def verify_package_payload(directory, manifest):
 
 
 def package_readiness(directory, manifest):
-    expected = 'vibepollo ' + arch_package_version(manifest['version'])
-    if run('pacman', '-Q', 'vibepollo', stderr=subprocess.PIPE).stdout.strip() != expected:
+    expected = 'vibebeam ' + arch_package_version(manifest['version'])
+    if run('pacman', '-Q', 'vibebeam', stderr=subprocess.PIPE).stdout.strip() != expected:
         raise DeployError('Installed package differs from this transaction; use pacman to recover')
     native_installation_preflight()
     verify_package_payload(directory, manifest)
@@ -1133,7 +1133,7 @@ def root_package_install(args):
     directory.mkdir(mode=0o700)
     package = directory / 'candidate.pkg.tar.gz'
     snapshot_archive(args.archive, args.sha256, package)
-    expected = 'vibepollo ' + arch_package_version(args.version)
+    expected = 'vibebeam ' + arch_package_version(args.version)
     if run('pacman', '-Qp', '--', package, stderr=subprocess.PIPE).stdout.strip() != expected:
         raise DeployError('Local package identity does not match the requested build')
     manifest = {'backend': 'pacman', 'status': 'PACKAGE_INSTALLING',
