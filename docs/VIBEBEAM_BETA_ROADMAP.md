@@ -66,3 +66,29 @@ https://github.com/nyteghost/vibebeam/actions/runs/41100992709
 
 Status: **roadmap only; not implemented**. Initial recommendations should use
 transparent local rules/statistics; optional AI explanation can follow later.
+
+## Vibe Intelligence — operating modes (planned)
+
+- [ ] **Off:** Disable Vibe Intelligence recommendations and AI explanations;
+      core streaming, manual quality controls, and essential safety protections
+      continue working normally.
+- [ ] **Smart Local (default):** Free, offline-first rules and lightweight
+      statistical analysis for quality/connection recommendations. No model,
+      account, subscription, API key, cloud service, or GPU inference required.
+      All proposed setting changes require explicit Apply, support Undo, and
+      automatically roll back on failed or degraded results.
+- [ ] **Local AI (opt-in):** Add optional plain-language diagnostic explanations
+      using a user-installed local model. Never require or automatically download
+      a model. Allow inference to pause during active gaming/streaming; use
+      sanitized summaries rather than raw secrets, tokens, or file contents.
+- [ ] Keep all modes optional, selectable in settings, and usable without
+      internet access. No telemetry or diagnostics leave the device by default.
+      No cloud AI dependency in the core product; any future cloud integration
+      must be a separately consented optional feature.
+- [ ] Persist the chosen mode locally, clearly indicate model availability,
+      and degrade gracefully from Local AI to Smart Local when a model is absent
+      or resource limits are reached (without silently enabling cloud access).
+- [ ] Test offline operation, mode switching, opt-out, no-model behavior,
+      resource usage during streams, privacy boundaries, and Apply/Undo safety.
+
+**Implementation status:** roadmap only; these modes are not yet shipped.
