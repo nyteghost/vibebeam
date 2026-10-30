@@ -40,3 +40,29 @@ until a verified package, rollback procedure, and smoke test exist.
 
 Prior failed validation:
 https://github.com/nyteghost/vibebeam/actions/runs/41100992709
+
+## Vibe Intelligence — quality recommendations with safe apply/undo (planned)
+
+- [ ] Collect local per-session quality signals (FPS, frame pacing, bitrate,
+      RTT/jitter, packet loss, encoder/capture latency and drops where available),
+      with explicit missing-data states and no telemetry upload by default.
+- [ ] Recommend a specific, supported quality adjustment only when a sustained
+      trend and minimum sample window justify it; show the observed evidence,
+      predicted trade-off, and confidence/uncertainty. Avoid repeated prompts
+      with hysteresis and cooldowns.
+- [ ] Present **Apply**, **Not now**, and **Don't suggest again for this host**;
+      never silently change resolution, refresh rate, codec, or virtual displays.
+- [ ] On Apply, snapshot all affected client and host settings, verify capability
+      and compatibility, change only the scoped parameters, and confirm the
+      stream remains healthy within a bounded observation window.
+- [ ] Provide a prominent **Undo** that restores the exact prior settings;
+      auto-rollback on failure, disconnect, timeout, or degraded stream, with
+      explicit feedback if any setting cannot be restored.
+- [ ] Persist only user-approved per-host preferences, make suggestions
+      opt-out, and avoid GPU-intensive inference during active streaming.
+- [ ] Test unsupported settings, stale telemetry, rapid reconnects, competing
+      manual edits, failed apply, partial rollback, and host/client version
+      mismatch before enabling in beta.
+
+Status: **roadmap only; not implemented**. Initial recommendations should use
+transparent local rules/statistics; optional AI explanation can follow later.
