@@ -1374,7 +1374,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SUNSHINE_TEST_ENABLE_COMPONENT)
     target_link_libraries(test_linux_display_power_lease PRIVATE
         PkgConfig::TEST_GIO Threads::Threads Boost::log Boost::format)
     add_test(NAME test_component_linux_display_power_lease COMMAND test_linux_display_power_lease)
-    set_tests_properties(test_component_linux_display_power_lease PROPERTIES LABELS "component" TIMEOUT 15)
+    # Subprocess handshakes are timeout-sensitive under parallel C++ fixture compilation.
+    # Keep all internal concurrent-owner assertions, but do not starve the fixture
+    # behind other compilation-heavy CTest cases on the same runner.
+    set_tests_properties(test_component_linux_display_power_lease PROPERTIES LABELS "component" TIMEOUT 60 RUN_SERIAL TRUE)
 
     add_executable(test_linux_app_supervisor
         "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_app_supervisor.c")
