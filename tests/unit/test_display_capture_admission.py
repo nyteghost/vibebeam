@@ -42,6 +42,7 @@ skip_revert = process[skip_start:skip_end]
 program = r'''
 #include <cassert>
 #include <chrono>
+#include "tests/support/native_mutation_test_stub.h"
 #include <functional>
 #include <iostream>
 #include <mutex>
@@ -222,7 +223,7 @@ with tempfile.TemporaryDirectory(prefix="vibeshine-capture-admission-") as temp:
     fixture = path / "admission.cpp"
     binary = path / "admission"
     fixture.write_text(program)
-    subprocess.run([compiler, "-std=c++23", "-pthread", str(fixture), "-o", str(binary)], check=True)
+    subprocess.run([compiler, "-std=c++23", "-pthread", "-I", str(root), str(fixture), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
 print("Display capture admission scenarios passed")
 

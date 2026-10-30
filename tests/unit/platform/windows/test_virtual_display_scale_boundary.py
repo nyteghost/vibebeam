@@ -39,6 +39,7 @@ harness = r'''
 #include <sstream>
 #include <string>
 #include <vector>
+#include "tests/support/native_mutation_test_stub.h"
 using LONG = std::int32_t;
 using DISPLAYCONFIG_DEVICE_INFO_TYPE = std::int32_t;
 constexpr LONG ERROR_SUCCESS=0, ERROR_INVALID_PARAMETER=87, ERROR_NOT_FOUND=1168,
@@ -150,11 +151,12 @@ with tempfile.TemporaryDirectory(prefix="vdisplay-scale-") as directory:
     source = pathlib.Path(directory) / "test.cpp"
     binary = pathlib.Path(directory) / "test"
     source.write_text(harness)
-    command = [sys.argv[1] if len(sys.argv)>1 else "c++", "-std=c++20", "-Wall", "-Wextra", "-Werror"]
+    command = [sys.argv[1] if len(sys.argv)>1 else "c++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-I", str(root)]
     try:
         subprocess.run(command + ["-fsanitize=undefined", "-fno-sanitize-recover=undefined", str(source), "-o", str(binary)], check=True, capture_output=True, text=True)
     except subprocess.CalledProcessError as error:
         if "cannot find -lubsan" not in error.stderr:
+            print(error.stderr, file=sys.stderr)
             raise
         print("UBSan runtime unavailable; running functional assertions without sanitizer")
         subprocess.run(command + [str(source), "-o", str(binary)], check=True)

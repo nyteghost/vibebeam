@@ -143,6 +143,10 @@ namespace display_helper_integration {
   }
 }
 namespace nvhttp { void reconcile_remote_monitor_owners() {} }
+namespace display_target {
+  struct FakeLeases { bool protected_output() const { return false; } };
+  FakeLeases &leases() { static FakeLeases instance; return instance; }
+}
 namespace platf {
   void streaming_will_start() { ++fake::platform_starts; }
   void streaming_will_stop() { ++fake::platform_stops; }
