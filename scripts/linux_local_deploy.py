@@ -1036,7 +1036,7 @@ def package_array(recipe, name):
 def build_native_package(archive_path, destination, version):
     """Package the exact validated local stage with the maintained Arch hooks."""
     recipe = (REPO / 'packaging/linux/Arch/PKGBUILD').read_text()
-    fields = [('pkgname', 'vibepollo'), ('pkgbase', 'vibepollo'),
+    fields = [('pkgname', 'vibebeam'), ('pkgbase', 'vibebeam'),
               ('pkgver', arch_package_version(version)), ('pkgdesc', 'Local Vibepollo build'),
               ('arch', 'x86_64'), ('builddate', str(int(time.time())))]
     for array, field in (('depends', 'depend'), ('provides', 'provides'),
@@ -1664,7 +1664,7 @@ def build_install(args):
         if not package_install:
             driver_preflight(work / 'stage', args.version)
         if package_install:
-            package = build / f'vibepollo-{arch_package_version(args.version)}-x86_64.pkg.tar.gz'
+            package = build / f'vibebeam-{arch_package_version(args.version)}-x86_64.pkg.tar.gz'
             build_native_package(archive_path, package, args.version)
             print(f'Local package: {package}\n'
                   'Installation replaces conflicting host packages and preserves original profiles.\n'
