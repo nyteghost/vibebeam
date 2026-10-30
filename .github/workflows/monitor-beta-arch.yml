@@ -1,0 +1,51 @@
+name: Monitor beta Arch validation
+on:
+  schedule:
+    - cron: '17 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  actions: read
+  contents: read
+
+jobs:
+  check-beta-arch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check latest beta Arch validation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          json=$(gh api "repos/$GH_REPO/actions/runs" -f branch='beta/host-download-20261028' -f per_page=100 --method GET)
+          result=$(jq -c '[.workflow_runs[] | select(.name == "Beta Arch Linux validation")] | sort_by(.created_at) | reverse | .[0] // empty' <<<"$json")
+          if [[ -z "$result" ]]; then
+            echo "No beta Arch validation workflow found" >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
+          id=$(jq -r '.id' <<<"$result")
+          status=$(jq -r '.status' <<<"$result")
+          conclusion=$(jq -r '.conclusion // "pending"' <<<"$result")
+          sha=$(jq -r '.head_sha[0:12]' <<<"$result")
+          url=$(jq -r '.html_url' <<<"$result")
+          {
+            echo "## Vibebeam beta Arch validation"
+            echo ""
+            echo "- Latest run: [$id]($url)"
+            echo "- Commit: `$sha`"
+            echo "- Status: **$status**"
+            echo "- Conclusion: **$conclusion**"
+            echo ""
+            echo "Monitoring only: this workflow never deploys, installs, merges, or modifies the host."
+          } >> "$GITHUB_STEP_SUMMARY"
+          if [[ "$status" != completed ]]; then
+            echo "Beta validation is still running or queued."
+            exit 0
+          fi
+          if [[ "$conclusion" != success ]]; then
+            echo "::error title=Beta Arch validation not passing::Latest beta validation concluded: $conclusion ($url)"
+            exit 1
+          fi
+          echo "::notice title=Beta Arch validation passed::Review artifact and manual host safety gates before deployment: $url"
