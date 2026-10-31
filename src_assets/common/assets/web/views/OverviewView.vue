@@ -333,6 +333,7 @@ onBeforeUnmount(() => {
   <div class="page page--wide overview-page">
     <PageHeader :title="t('ui.overview.title')" :description="t('ui.overview.description')">
       <template #actions>
+        <RouterLink to="/doctor" class="vs-button vs-button--secondary">{{ t('ui.doctor.title') }}</RouterLink>
         <div class="overview-refresh">
           <span class="overview-updated">{{
             t('ui.overview.updated', { time: lastUpdatedLabel })

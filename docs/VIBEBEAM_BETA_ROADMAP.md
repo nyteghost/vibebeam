@@ -156,3 +156,31 @@ These are planned additions, not release claims. Transactional Apply/Undo,
 client telemetry, Local AI and runtime capture/disconnect verification remain
 open release work. Implement telemetry and capability checks before enabling
 any automatic quality transaction.
+
+## Connection Doctor: implemented on beta
+
+- New `/v2/doctor` page, linked from the dashboard and navigation.
+- Read-only fresh metadata/session snapshots with an eight-second timeout.
+  A refresh clears older findings; unavailable and malformed responses stay unknown.
+- Separate encoder probe evidence, configured/observed Linux KMS capture,
+  virtual-output/Windows-driver readiness and active/paused/idle session state.
+- Distinguish the running version from the installed package. Do not claim NVENC,
+  client latency/loss, compatibility, output ownership or physical-monitor cleanup
+  from snapshots that do not expose them.
+- Preview and explicitly copy a local support summary containing only running
+  version identifiers, check outcomes and known limitations. No automatic upload,
+  raw errors/logs, configuration, client/app names, addresses, tokens or file paths.
+- Keyboard/mobile layout and clipboard failure coverage are in the hosted browser
+  gate. The existing end-to-end stream and CachyOS smoke-test gates remain open.
+- Newer Arch validation runs supersede older runs in the same branch concurrency
+  group, reducing duplicate package builds during beta iteration.
+
+## Further additions to consider after profiles
+
+- Quick Connect favorites for frequently used host/app combinations.
+- Gaming, Desktop and Battery Saver presets, with a preview and manual overrides.
+- Transfer center with per-file progress, cancellation, destination visibility,
+  checksums and verified resume after interruptions.
+- A focused in-session toolbar for quality, screenshots, displays and disconnect.
+
+These are future work, not implemented by the Connection Doctor increment.

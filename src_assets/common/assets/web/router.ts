@@ -4,6 +4,7 @@ import OverviewView from '@/views/OverviewView.vue';
 const ApplicationView = () => import('@/views/ApplicationView.vue');
 const ApiTokensView = () => import('@/views/ApiTokensView.vue');
 const BrowserStreamView = () => import('@/views/BrowserStreamView.vue');
+const ConnectionDoctorView = () => import('@/views/ConnectionDoctorView.vue');
 const DevicesView = () => import('@/views/DevicesView.vue');
 const IntegrationsView = () => import('@/views/IntegrationsView.vue');
 const LibraryView = () => import('@/views/LibraryView.vue');
@@ -62,6 +63,12 @@ const router = createRouter({
       name: 'pair',
       component: PairView,
       meta: { titleKey: 'ui.pair.page.title' },
+    },
+    {
+      path: '/doctor',
+      name: 'connection-doctor',
+      component: ConnectionDoctorView,
+      meta: { titleKey: 'ui.nav.doctor' },
     },
     {
       path: '/stats',

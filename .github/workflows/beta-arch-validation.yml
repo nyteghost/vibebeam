@@ -6,6 +6,10 @@ on:
       - beta/host-download-20261028
   workflow_dispatch:
 
+concurrency:
+  group: beta-arch-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   arch-beta:
     permissions:

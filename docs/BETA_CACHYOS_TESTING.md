@@ -59,6 +59,21 @@ Do not start a second streaming host to obtain a tray icon. The companion uses
 a singleton lock. Newer beta builds open `/v2/` directly from its Open action. Its API connection is separate from host pairing; never paste
 API tokens, private keys, state archives or full configuration into test reports.
 
+## Connection Doctor
+
+New beta builds include `https://127.0.0.1:47990/v2/doctor`. Run checks from the
+new dashboard or navigation. It reads host metadata and session state without
+starting capture or encoder probes, changing settings or stopping services.
+
+Check that configured KMS capture is distinguished from observed capture,
+unknown network/client compatibility is visible, and failed refreshes remove
+older positive findings. The version shown is the running host version, not a
+package database check. Use a local terminal to verify the installed package.
+
+Preview the support summary before explicitly copying it. It contains static
+check outcomes and supported running-version identifiers, not raw logs, tokens,
+paths, addresses or client/app names. Nothing is uploaded by this feature.
+
 ## Controlled smoke test
 
 Use local physical access and a short test session, with the rollback package
