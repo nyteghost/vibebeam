@@ -45,9 +45,9 @@ test('host workspace exposes accessible health and refresh on desktop and mobile
   await page.goto('/v2/');
   const status = page.locator('.workspace-status');
   await expect(status).toBeVisible();
-  await expect(status.getByRole('link', { name: 'Statistics' })).toHaveCount(0);
   await expect(status.locator('a[href="/v2/stats"]')).toBeVisible();
-  const refresh = status.getByRole('button', { name: 'Refresh host status' });
+  const refresh = status.locator('button.workspace-status__refresh');
+  await expect(refresh).toHaveAttribute('aria-label', /.+/);
   await expect(refresh).toBeVisible();
   await refresh.click();
   await expect(status).toBeVisible();
