@@ -47,7 +47,7 @@ https://github.com/nyteghost/vibebeam/actions/runs/41100992709
 - [x] Read-only offline quality advisor module with sustained-trend thresholds and missing-data checks.
 - [x] Advisor unit tests and a host dashboard panel with Off / Smart Local selection.
 - [ ] Connect real per-session stream telemetry to the advisor; currently no quality signals are supplied.
-- [ ] Persist mode and host-specific dismissal preferences.
+- [x] Persist explicit mode and dismissed suggestion types per browser/host origin; recover from blocked storage.
 - [ ] Implement transactional Apply / Undo with automatic rollback; **not available** yet.
 - [ ] Enable optional Local AI explanations only after resource/privacy tests.
 - [ ] Confirm latest beta CI, Arch validation and production-independent smoke tests.
@@ -79,8 +79,8 @@ No production CachyOS installation authorized by this checkpoint.
       manual edits, failed apply, partial rollback, and host/client version
       mismatch before enabling in beta.
 
-Status: **roadmap only; not implemented**. Initial recommendations should use
-transparent local rules/statistics; optional AI explanation can follow later.
+Status: **partially implemented, read-only**. Offline rules and browser preferences exist;
+live telemetry, transactional Apply/Undo and optional AI explanations remain unimplemented.
 
 ## Vibe Intelligence — operating modes (planned)
 
@@ -106,4 +106,16 @@ transparent local rules/statistics; optional AI explanation can follow later.
 - [ ] Test offline operation, mode switching, opt-out, no-model behavior,
       resource usage during streams, privacy boundaries, and Apply/Undo safety.
 
-**Implementation status:** roadmap only; these modes are not yet shipped.
+**Implementation status:** Off / Smart Local selector and local browser preferences are
+implemented on beta. Local AI is unavailable; selecting a legacy saved AI preference
+falls back to rules. No setting changes, inference or uploads are enabled.
+
+## Continuation: evidence validation and test coverage
+
+- Reject replayed timestamps, stale metrics, observation gaps and impossible percentages.
+- Require the minimum sample span separately for each metric, not just the overall batch.
+- Save only explicit browser choices; no quality samples, credentials or model data.
+- Add fast hosted web unit/build and dashboard browser checks on the beta branch.
+- See [CachyOS testing and tray recovery](BETA_CACHYOS_TESTING.md).
+- Initial head `44ad2139e3f8` passed hosted Arch validation; each new head still needs
+  its own passing package build and runtime validation before promotion.

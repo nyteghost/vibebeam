@@ -203,3 +203,44 @@ test('an in-flight recovery cannot be cancelled or submitted twice', async ({ pa
   finish?.();
   await expect(page.getByRole('status')).toContainText('a physical monitor is active');
 });
+
+test('offline advisor saves Off with keyboard controls and makes no host mutations', async ({ page }) => {
+  await host(page);
+  const mutations: string[] = [];
+  page.on('request', (request) => {
+    if (new URL(request.url()).pathname.startsWith('/api/') && request.method() !== 'GET') mutations.push(request.url());
+  });
+  await page.goto('/v2/');
+  await page.setViewportSize({ width: 390, height: 844 });
+  const mode = page.getByRole('combobox', { name: 'Vibe Intelligence mode' });
+  await expect(mode).toHaveValue('smart-local');
+  await mode.focus();
+  await mode.press('Home');
+  await mode.press('Enter');
+  await expect(mode).toHaveValue('off');
+  await expect(page.getByText('Recommendations are turned off.', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(mode).toHaveValue('off');
+  await expect(mode.locator('option[value="local-ai"]')).toBeDisabled();
+  await mode.selectOption('smart-local');
+  await expect(page.getByText(/No supported stream-quality samples available yet/)).toBeVisible();
+  expect(mutations).toEqual([]);
+});
+
+test('advisor restores dismissed types and handles unavailable browser storage', async ({ page }) => {
+  await host(page);
+  await page.addInitScript(() => {
+    localStorage.setItem('vibebeam.intelligence.v1', JSON.stringify({ mode: 'smart-local', dismissed: ['packet-loss'] }));
+    const setItem = Storage.prototype.setItem;
+    Storage.prototype.setItem = function(key, value) {
+      if (key === 'vibebeam.intelligence.v1') throw new Error('Storage disabled');
+      return setItem.call(this, key, value);
+    };
+  });
+  await page.goto('/v2/');
+  await page.getByRole('button', { name: 'Restore dismissed suggestions', exact: true }).click();
+  await expect(page.getByText(/Browser storage is unavailable/)).toBeVisible();
+  await expect(page.getByText(/No supported stream-quality samples available yet/)).toBeVisible();
+  await page.getByRole('combobox', { name: 'Vibe Intelligence mode' }).selectOption('off');
+  await expect(page.getByText('Recommendations are turned off.', { exact: true })).toBeVisible();
+});
