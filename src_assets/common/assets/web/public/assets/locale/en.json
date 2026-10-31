@@ -411,6 +411,8 @@
     "output_name_default": "Primary display (default)"
   },
   "config": {
+    "file_transfer_dir": "Received file directory",
+    "file_transfer_dir_desc": "Folder where files sent by clients are saved on the host. Use a writable, trusted location.",
     "app_focus_title": "Managed application focus",
     "app_focus_description": "Bring games launched from managed libraries to the foreground. Applies to Steam, Lutris and Playnite on their supported platforms.",
     "app_focus_attempts": "Focus count",

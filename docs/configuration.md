@@ -42,6 +42,18 @@ editing the `conf` file in a text editor. Use the examples as reference.
 
 ## General
 
+### file_transfer_dir
+
+Directory where the host stores files received from clients. Configure a writable
+folder for the account running the host; avoid system directories and paths
+accessible to untrusted users. Existing received files are not moved when this
+setting changes.
+
+```text
+file_transfer_dir = /home/your-user/Downloads/Vibebeam
+```
+
+
 ### locale
 
 <table>

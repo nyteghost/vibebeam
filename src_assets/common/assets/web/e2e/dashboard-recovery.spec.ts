@@ -40,6 +40,24 @@ async function host(
   return calls;
 }
 
+test('host workspace exposes accessible health and refresh on desktop and mobile', async ({ page }) => {
+  await host(page);
+  await page.goto('/v2/');
+  const status = page.locator('.workspace-status');
+  await expect(status).toBeVisible();
+  await expect(status.locator('a[href="/v2/stats"]')).toBeVisible();
+  const refresh = status.locator('button.workspace-status__refresh');
+  await expect(refresh).toHaveAttribute('aria-label', /.+/);
+  await expect(refresh).toBeVisible();
+  await refresh.click();
+  await expect(status).toBeVisible();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(status).toBeVisible();
+  await expect(refresh).toBeVisible();
+  await expect(status.locator('a[href="/v2/stats"]')).toBeVisible();
+});
+
 async function confirmRecovery(page: Page) {
   await page.getByRole('button', { name: 'Terminate virtual screen', exact: true }).click();
   await expect(page.getByRole('dialog')).toContainText('Streams using them will lose video.');

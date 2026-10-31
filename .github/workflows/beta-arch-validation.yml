@@ -1,0 +1,21 @@
+name: Beta Arch Linux validation
+permissions: {}
+on:
+  push:
+    branches:
+      - beta/host-download-20261028
+  workflow_dispatch:
+
+jobs:
+  arch-beta:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/ci-archlinux.yml
+    with:
+      validation_only: true
+      use_self_hosted: false
+      build_tests: true
+      release_commit: ${{ github.sha }}
+      release_version: 2.0.1-beta-host-download
+      cache_namespace: beta-host-download-v1
+      artifact_retention_days: 1
