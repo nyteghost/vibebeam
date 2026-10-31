@@ -15,6 +15,8 @@ async function host(page: Page) {
   await localRoute(page, '**/api/**', async (route) => {
     const request = route.request();
     const path = new URL(request.url()).pathname;
+    // Vite also serves /v2/api/client.ts; only mock actual host API calls.
+    if (!path.startsWith('/api/')) { await route.fallback(); return; }
     if (request.method() !== 'GET') state.mutations.push(path);
     let body: unknown = { status: true };
     if (path === '/api/auth/status') body = { authenticated: true, credentials_configured: true, login_required: false };
