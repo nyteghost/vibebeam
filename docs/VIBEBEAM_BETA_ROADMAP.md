@@ -1,6 +1,6 @@
 # Vibebeam beta — reliability and safe host release
 
-Status: **in progress** (October 30, 2026). Scope: the beta branch only.
+Status: **in progress** (October 31, 2026). Scope: the beta branch only.
 Production CachyOS / KDE Wayland must remain on the known-good installed host
 until a verified package, rollback procedure, and smoke test exist.
 
@@ -40,6 +40,21 @@ until a verified package, rollback procedure, and smoke test exist.
 
 Prior failed validation:
 https://github.com/nyteghost/vibebeam/actions/runs/41100992709
+
+## October 31 implementation checkpoint
+
+- [x] Host UI: persistent accessible status strip, refresh and stats link, responsive styling.
+- [x] Read-only offline quality advisor module with sustained-trend thresholds and missing-data checks.
+- [x] Advisor unit tests and a host dashboard panel with Off / Smart Local selection.
+- [ ] Connect real per-session stream telemetry to the advisor; currently no quality signals are supplied.
+- [ ] Persist mode and host-specific dismissal preferences.
+- [ ] Implement transactional Apply / Undo with automatic rollback; **not available** yet.
+- [ ] Enable optional Local AI explanations only after resource/privacy tests.
+- [ ] Confirm latest beta CI, Arch validation and production-independent smoke tests.
+
+Source commits: `a3eca0548`, `0f99f46c6`, `4461ffe9a`,
+`6fc0ec20f`, `13c2506bd`, `51cdd1936`.
+No production CachyOS installation authorized by this checkpoint.
 
 ## Vibe Intelligence — quality recommendations with safe apply/undo (planned)
 
