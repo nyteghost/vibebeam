@@ -63,7 +63,7 @@ export function recommendQuality(
       metric: (s) => s.rttMs, max: 100000, threshold: 80, comparison: (n, t) => n >= t },
     { id: 'dropped-frames', title: 'Sustained dropped frames', suggestion: 'Consider a lower resolution or frame rate.', unit: '%',
       metric: (s) => s.droppedFramesPercent, max: 100, threshold: 5, comparison: (n, t) => n >= t },
-    { id: 'low-fps', title: 'Frame rate below target', suggestion: 'Consider a lower target FPS or quality preset.', unit: '% of target',
+    { id: 'low-fps', title: 'Frame rate below target', suggestion: 'Check host capture and encoder load before changing quality; static content can naturally produce fewer frames.', unit: '% of target',
       metric: (s) => finite(s.fps, 0, 1000) && finite(s.targetFps, 1, 1000) ? 100 * s.fps / s.targetFps : undefined,
       max: 100000, threshold: 80, comparison: (n, t) => n <= t },
   ];

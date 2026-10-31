@@ -61,7 +61,7 @@ class DesktopStandins:
 
             def setText(self, text):
                 self.text = text
-                if text.startswith("Vibepollo: "):
+                if text.startswith("Vibebeam: "):
                     desktop.labels.append(text)
 
             def setEnabled(self, enabled):
@@ -296,10 +296,10 @@ class TrayTests(unittest.TestCase):
     def test_update_metadata_request_does_not_carry_local_credentials(self):
         response = unittest.mock.MagicMock()
         response.__enter__.return_value.read.return_value = b"[]"
-        version = subprocess.CompletedProcess([], 0, "Vibepollo version 2.0.0", "")
+        version = subprocess.CompletedProcess([], 0, "Vibebeam version 2.0.0", "")
         with patch.object(tray.urllib.request, "urlopen", return_value=response) as request:
             with patch.object(tray.subprocess, "run", return_value=version):
-                self.assertEqual(tray.check_updates(), ("Vibepollo version 2.0.0", []))
+                self.assertEqual(tray.check_updates(), ("Vibebeam version 2.0.0", []))
         headers = request.call_args.args[0].headers
         self.assertNotIn("Authorization", headers)
         self.assertEqual(request.call_args.args[0].full_url, tray.RELEASES_API)
@@ -431,11 +431,11 @@ class TrayTests(unittest.TestCase):
                         hold_poll[0] = True
                         desktop.trigger("Refresh status")  # Snapshot precedes the action.
                         self.assertTrue(poll_started.wait(5))
-                        desktop.trigger("Quit Vibepollo")
+                        desktop.trigger("Quit Vibebeam")
                         self.assertTrue(service_started.wait(5))
-                        self.assertFalse(desktop.actions["Start Vibepollo"].enabled)
+                        self.assertFalse(desktop.actions["Start Vibebeam"].enabled)
                         self.assertFalse(desktop.actions["Restart"].enabled)
-                        self.assertFalse(desktop.actions["Quit Vibepollo"].enabled)
+                        self.assertFalse(desktop.actions["Quit Vibebeam"].enabled)
                         service_release.set()
                         desktop.dispatch()  # Actual async service completion boundary.
                         self.assertEqual(desktop.labels, initial)
@@ -443,13 +443,13 @@ class TrayTests(unittest.TestCase):
                         poll_release.set()
                         desktop.dispatch()  # Old success/error must never reach show().
                         self.assertEqual(desktop.labels, initial)
-                        self.assertFalse(desktop.actions["Quit Vibepollo"].enabled)
+                        self.assertFalse(desktop.actions["Quit Vibebeam"].enabled)
                         self.assertNotIn("stale service query error", desktop.warnings)
                         desktop.dispatch()  # Fresh poll's real completion updates the menu.
                         expected = "Running — connect a token for stream status" if action_error else "Stopped"
-                        self.assertEqual(desktop.labels[-1], "Vibepollo: " + expected)
-                        self.assertEqual(desktop.actions["Start Vibepollo"].enabled, not action_error)
-                        self.assertEqual(desktop.actions["Quit Vibepollo"].enabled, action_error)
+                        self.assertEqual(desktop.labels[-1], "Vibebeam: " + expected)
+                        self.assertEqual(desktop.actions["Start Vibebeam"].enabled, not action_error)
+                        self.assertEqual(desktop.actions["Quit Vibebeam"].enabled, action_error)
                         return 0
 
                     desktop = DesktopStandins(scenario)
@@ -516,7 +516,7 @@ class TrayTests(unittest.TestCase):
                         hold_poll[0] = True
                         desktop.trigger("Refresh status")
                         self.assertTrue(poll_started.wait(5))
-                        desktop.trigger("Quit Vibepollo")
+                        desktop.trigger("Quit Vibebeam")
                         self.assertTrue(service_started.wait(5))
                         poll_release.set()
                         desktop.dispatch()  # Success/error arrives with action still pending.
@@ -534,7 +534,7 @@ class TrayTests(unittest.TestCase):
                             self.assertEqual(len(workers), 3, "pending action admitted status IPC")
                             self.assertEqual(len(queries), 2)
                             self.assertEqual(desktop.labels, initial)
-                            for name in ("Start Vibepollo", "Restart", "Quit Vibepollo",
+                            for name in ("Start Vibebeam", "Restart", "Quit Vibebeam",
                                          "No application running"):
                                 self.assertFalse(desktop.actions[name].enabled)
                         service_release.set()
@@ -543,9 +543,9 @@ class TrayTests(unittest.TestCase):
                         self.assertEqual(desktop.warnings, ["Action denied"] if action_error else [])
                         desktop.dispatch()
                         expected = "Running — connect a token for stream status" if action_error else "Stopped"
-                        self.assertEqual(desktop.labels[-1], "Vibepollo: " + expected)
-                        self.assertEqual(desktop.actions["Start Vibepollo"].enabled, not action_error)
-                        self.assertEqual(desktop.actions["Quit Vibepollo"].enabled, action_error)
+                        self.assertEqual(desktop.labels[-1], "Vibebeam: " + expected)
+                        self.assertEqual(desktop.actions["Start Vibebeam"].enabled, not action_error)
+                        self.assertEqual(desktop.actions["Quit Vibebeam"].enabled, action_error)
                         self.assertEqual(len(queries), 3)
                         self.assertTrue(desktop.events.empty(), "fresh poll queued an unsolicited retry")
                         # External changes use the ordinary timer, not action epochs.
@@ -557,7 +557,7 @@ class TrayTests(unittest.TestCase):
                         self.assertEqual(len(queries), 4)
                         self.assertEqual(len(workers), 5)
                         expected = "Stopped" if action_error else "Running — connect a token for stream status"
-                        self.assertEqual(desktop.labels[-1], "Vibepollo: " + expected)
+                        self.assertEqual(desktop.labels[-1], "Vibebeam: " + expected)
                         self.assertTrue(desktop.events.empty())
                         return 0
 
@@ -700,6 +700,29 @@ class TrayTests(unittest.TestCase):
                         run.assert_not_called()
 
 
+    def test_open_action_uses_the_new_dashboard_without_service_mutation(self):
+        def scenario():
+            desktop.dispatch()  # Consume the initial asynchronous status completion.
+            desktop.trigger("Open Vibebeam")
+            core = desktop.modules["PySide6.QtCore"]
+            gui = desktop.modules["PySide6.QtGui"]
+            core.QUrl.assert_called_once_with("https://127.0.0.1:47990/v2/")
+            gui.QDesktopServices.openUrl.assert_called_once_with(core.QUrl.return_value)
+            return 0
+
+        desktop = DesktopStandins(scenario)
+        with patch.dict(tray.sys.modules, desktop.modules), \
+                patch.dict(os.environ, {"DBUS_SESSION_BUS_ADDRESS": "fixture", "WAYLAND_DISPLAY": "fixture"}), \
+                patch.object(tray.os, "getuid", return_value=1000), \
+                patch.object(tray.os, "geteuid", return_value=1000), \
+                patch.object(tray, "Settings") as settings, \
+                patch.object(tray, "read_services", return_value={}), \
+                patch.object(tray, "service_command") as service_command:
+            settings.return_value.load.return_value = {}
+            self.assertEqual(tray.main(["--no-notifications"]), 0)
+            service_command.assert_not_called()
+
+
 class TrayPackagingTests(unittest.TestCase):
     def test_arch_package_requires_the_tray_runtime(self):
         metadata = subprocess.run(["bash", "-c",
@@ -743,6 +766,7 @@ class TrayPackagingTests(unittest.TestCase):
                 values = entry["Desktop Entry"]
                 self.assertEqual(values["Exec"], "/usr/bin/vibepollo-tray")
                 self.assertEqual(values["TryExec"], values["Exec"])
+                self.assertEqual(values["Name"], "Vibebeam Tray")
                 self.assertEqual(values["Icon"], "apollo")
                 self.assertEqual(values["Type"], "Application")
                 self.assertEqual(values["Terminal"], "false")

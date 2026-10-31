@@ -37,7 +37,7 @@ Open `https://127.0.0.1:47990/v2/` for the new dashboard. `/settings` is the
 classic UI. Its banner also links to the new interface.
 
 The machine service intentionally disables its embedded tray. KDE uses a
-separate **Vibepollo Tray** companion (legacy name retained for compatibility):
+separate **Vibebeam Tray** companion (older beta builds display **Vibepollo Tray**):
 
 ```fish
 /usr/bin/vibepollo-tray
@@ -56,7 +56,7 @@ pgrep -af '[v]ibepollo-tray'
 ```
 
 Do not start a second streaming host to obtain a tray icon. The companion uses
-a singleton lock. Its API connection is separate from host pairing; never paste
+a singleton lock. Newer beta builds open `/v2/` directly from its Open action. Its API connection is separate from host pairing; never paste
 API tokens, private keys, state archives or full configuration into test reports.
 
 ## Controlled smoke test
@@ -69,8 +69,10 @@ and backup available. Record pass/fail and exact client/host commit versions.
 - Check NVENC availability and normal quality on the RTX 3080.
 - Open the new dashboard at desktop and narrow widths; keyboard focus remains visible.
 - Switch Smart Local to Off, reload, and verify Off persists in this browser.
-  Local AI remains unavailable. The advisor has no live quality feed yet; no
-  quality advice is preferable to fabricated metrics. Apply/Undo is unavailable.
+  Local AI remains unavailable. Newer beta builds measure host-output FPS per
+  selected active session after a continuous observation window. Client FPS,
+  latency and packet loss remain unknown. Apply/Undo is unavailable. Switch Off
+  or hide the page to stop sampling; verify reconnects start a fresh window.
 - Test a brief client-side network interruption, recovery and explicit disconnect.
   Do not power-cycle the production host as an outage simulation.
 - Verify virtual displays owned by the session disappear and physical outputs remain.

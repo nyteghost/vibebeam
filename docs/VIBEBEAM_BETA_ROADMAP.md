@@ -46,7 +46,8 @@ https://github.com/nyteghost/vibebeam/actions/runs/41100992709
 - [x] Host UI: persistent accessible status strip, refresh and stats link, responsive styling.
 - [x] Read-only offline quality advisor module with sustained-trend thresholds and missing-data checks.
 - [x] Advisor unit tests and a host dashboard panel with Off / Smart Local selection.
-- [ ] Connect real per-session stream telemetry to the advisor; currently no quality signals are supplied.
+- [x] Connect host-output FPS from per-session frame/uptime deltas; isolate sessions and reset on gaps/reconnects.
+- [ ] Add independently verified client RTT, packet-loss and delivered-FPS signals; unavailable metrics remain unknown.
 - [x] Persist explicit mode and dismissed suggestion types per browser/host origin; recover from blocked storage.
 - [ ] Implement transactional Apply / Undo with automatic rollback; **not available** yet.
 - [ ] Enable optional Local AI explanations only after resource/privacy tests.
@@ -119,3 +120,39 @@ falls back to rules. No setting changes, inference or uploads are enabled.
 - See [CachyOS testing and tray recovery](BETA_CACHYOS_TESTING.md).
 - Initial head `44ad2139e3f8` passed hosted Arch validation; each new head still needs
   its own passing package build and runtime validation before promotion.
+
+## Next beta increment: live observations and desktop clarity
+
+- Read existing `/api/history/sessions/active` data without changing host state.
+- Sample host-output FPS every five seconds while the dashboard is visible and
+  Smart Local is enabled. Off and page suspension abort pending reads and clear
+  observations. No samples persist or leave the device.
+- Show a session selector, measured FPS/target and evidence count. At least six
+  continuous observations over 15 seconds are required for guidance. Static
+  content can lower host FPS: this alone does not diagnose client/network health.
+- Separate counters per session; reject duplicate IDs, replayed uptime, counter
+  resets, target changes, long gaps and unsupported/malformed endpoint responses.
+- Rename the visible Linux companion to Vibebeam Tray; Open leads to `/v2/`.
+  Preserve `vibepollo-tray`, the existing lock, settings and service identities.
+- Correct browser fixtures for this fork's release endpoint while retaining the
+  network audit and upstream compatibility. Assert the unavailable AI option's
+  actual disabled DOM property.
+
+## Candidate additions, ordered by everyday value
+
+1. **Connection doctor:** read-only checks for version compatibility, NVENC,
+   capture and monitor readiness; distinguish unknown from failed and show the
+   relevant next step. No automatic service restarts or module changes.
+2. **Per-client profiles:** remember quality/display choices for each client;
+   preview the exact changes and preserve manual overrides.
+3. **Session review:** explain FPS trends, bitrate changes, reconnects and cleanup
+   results using known evidence; provide a local redacted summary for support.
+4. **Monitor preview and recovery:** show physical versus owned virtual outputs,
+   preview changes, and provide explicit restore controls that preserve other displays.
+5. **Update center:** show installed/running/available versions separately,
+   verified package provenance and rollback readiness before a planned update.
+
+These are planned additions, not release claims. Transactional Apply/Undo,
+client telemetry, Local AI and runtime capture/disconnect verification remain
+open release work. Implement telemetry and capability checks before enabling
+any automatic quality transaction.

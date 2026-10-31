@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import LinuxCaptureStatus from '@/components/settings/LinuxCaptureStatus.vue';
@@ -20,8 +20,7 @@ import type { SessionStatus } from '@/types/sessions';
 import { useSystemStore } from '@/stores/system';
 import { formatBytes } from '@/utils/format';
 import { displayRecoverySupported } from '@/utils/displayRecovery';
-import { recommendQuality, type IntelligenceMode, type QualitySignal } from '@/utils/vibeIntelligence';
-import { readIntelligencePreferences, writeIntelligencePreferences, type IntelligencePreferences } from '@/utils/intelligencePreferences';
+import QualityAdvisor from '@/components/QualityAdvisor.vue';
 
 interface OverviewWarning {
   key: string;
@@ -42,37 +41,6 @@ const { locale, t } = useI18n();
 const system = useSystemStore();
 const session = ref<SessionStatus | null>(null);
 const hostStats = ref<HostStatsSnapshot | null>(null);
-function loadIntelligencePreferences(): IntelligencePreferences {
-  try {
-    return readIntelligencePreferences(window.localStorage);
-  } catch {
-    return { mode: 'smart-local', dismissed: [] };
-  }
-}
-const intelligencePreferences = ref(loadIntelligencePreferences());
-const intelligenceMode = computed<IntelligenceMode>({
-  get: () => intelligencePreferences.value.mode,
-  set: (mode) => { intelligencePreferences.value.mode = mode; },
-});
-const preferencesSaved = ref(true);
-watch(intelligencePreferences, (preferences) => {
-  try {
-    preferencesSaved.value = writeIntelligencePreferences(window.localStorage, preferences);
-  } catch {
-    preferencesSaved.value = false;
-  }
-}, { deep: true });
-const qualitySamples = ref<QualitySignal[]>([]);
-const qualityAdvice = computed(() => recommendQuality(intelligenceMode.value, qualitySamples.value, Date.now())
-  .filter((advice) => !intelligencePreferences.value.dismissed.includes(advice.id)));
-const qualityAdviceDismissed = ref(false);
-function dismissQualityAdvice(): void {
-  intelligencePreferences.value.dismissed = [...new Set([
-    ...intelligencePreferences.value.dismissed, ...qualityAdvice.value.map((advice) => advice.id),
-  ])];
-}
-
-
 const statsStale = ref(false);
 const hostInfo = ref<HostInfo | null>(null);
 const hostPlatform = ref('');
@@ -173,10 +141,6 @@ async function refresh(silent = false): Promise<void> {
   if (statsResult.status === 'fulfilled') {
     hostStats.value = statsResult.value;
     statsStale.value = false;
-    // Only capture available, finite host signals. Host utilization is not a
-    // proxy for stream latency or dropped frames, so do not invent metrics.
-    // Actual stream-quality signals can be wired here when the API exposes them.
-    qualitySamples.value = qualitySamples.value.filter((sample) => Date.now() - sample.at < 120000);
 
   } else {
     statsStale.value = true;
@@ -385,44 +349,7 @@ onBeforeUnmount(() => {
       </template>
     </PageHeader>
     <div class="visually-hidden" aria-live="polite" aria-atomic="true">{{ readiness.label }}</div>
-    <section class="panel intelligence-panel" aria-labelledby="intelligence-title">
-      <div class="panel__heading">
-        <div>
-          <h2 id="intelligence-title">Vibe Intelligence <span class="intelligence-panel__beta">Beta</span></h2>
-          <p>Optional, private and offline-first quality guidance. Nothing is changed automatically.</p>
-        </div>
-        <label class="intelligence-panel__mode">
-          <span>Mode</span>
-          <select v-model="intelligenceMode" aria-label="Vibe Intelligence mode" class="vs-select">
-            <option value="off">Off</option>
-            <option value="smart-local">Smart Local</option>
-            <option value="local-ai" disabled>Local AI (not installed)</option>
-          </select>
-        </label>
-      </div>
-      <p class="intelligence-panel__note">Mode and dismissed suggestions are saved in this browser for this host address. Local AI is unavailable; Smart Local uses rules without a model.</p>
-      <p v-if="!preferencesSaved" role="status">Browser storage is unavailable. Your choices apply until this page is closed.</p>
-      <button v-if="intelligencePreferences.dismissed.length" type="button" class="vs-button"
-        @click="intelligencePreferences.dismissed = []; qualityAdviceDismissed = false">Restore dismissed suggestions</button>
-      <p v-if="intelligenceMode === 'off'">Recommendations are turned off.</p>
-      <p v-else-if="intelligencePreferences.dismissed.length && qualityAdvice.length === 0" class="intelligence-panel__note">
-        Dismissed suggestion types are hidden for this host address.
-      </p>
-      <p v-else-if="qualityAdvice.length === 0" class="intelligence-panel__note">
-        No supported stream-quality samples available yet. Recommendations will appear
-        only after sustained, reliable measurements are available.
-      </p>
-      <div v-else-if="!qualityAdviceDismissed" role="status">
-        <div v-for="advice in qualityAdvice" :key="advice.id">
-          <strong>{{ advice.summary }}</strong>
-          <p>{{ advice.evidence }} {{ advice.suggestion }}</p>
-        </div>
-        <p>Changes require manual confirmation; automatic Apply and Undo are not enabled.</p>
-        <button type="button" class="vs-button" @click="qualityAdviceDismissed = true">Not now</button>
-        <button type="button" class="vs-button" @click="dismissQualityAdvice">Don't suggest these again for this host</button>
-      </div>
-      <p v-else class="intelligence-panel__note">Suggestions hidden until you leave this page.</p>
-    </section>
+    <QualityAdvisor />
     <FirstRunChecklist />
     <VirtualDisplayRecovery
       v-if="displayRecoverySupported(hostPlatform || system.metadata?.platform || '')"

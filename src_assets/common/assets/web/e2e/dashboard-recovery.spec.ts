@@ -29,6 +29,7 @@ async function host(
       body = { status: true, activeSessions: 1, appRunning: true };
     } else if (path === '/api/host/info') body = { cpu_model: 'CPU', gpu_model: 'GPU' };
     else if (path === '/api/host/stats') body = { cpu_percent: 0, gpu_percent: 0 };
+    else if (path === '/api/history/sessions/active') body = { sessions: [] };
     else if (path === '/api/display/terminate_virtual') {
       expect(request.method()).toBe('POST');
       calls.push({ body: request.postDataJSON(), csrf: request.headers()['x-csrf-token'] });
@@ -221,9 +222,9 @@ test('offline advisor saves Off with keyboard controls and makes no host mutatio
   await expect(page.getByText('Recommendations are turned off.', { exact: true })).toBeVisible();
   await page.reload();
   await expect(mode).toHaveValue('off');
-  await expect(mode.locator('option[value="local-ai"]')).toBeDisabled();
+  await expect(mode.locator('option[value="local-ai"]')).toHaveJSProperty('disabled', true);
   await mode.selectOption('smart-local');
-  await expect(page.getByText(/No supported stream-quality samples available yet/)).toBeVisible();
+  await expect(page.getByText(/No active stream measurements available yet/)).toBeVisible();
   expect(mutations).toEqual([]);
 });
 
@@ -240,7 +241,37 @@ test('advisor restores dismissed types and handles unavailable browser storage',
   await page.goto('/v2/');
   await page.getByRole('button', { name: 'Restore dismissed suggestions', exact: true }).click();
   await expect(page.getByText(/Browser storage is unavailable/)).toBeVisible();
-  await expect(page.getByText(/No supported stream-quality samples available yet/)).toBeVisible();
+  await expect(page.getByText(/No active stream measurements available yet/)).toBeVisible();
   await page.getByRole('combobox', { name: 'Vibe Intelligence mode' }).selectOption('off');
   await expect(page.getByText('Recommendations are turned off.', { exact: true })).toBeVisible();
+});
+
+test('advisor uses live session counters, dismisses evidence and stops sampling when Off', async ({ page }) => {
+  await page.clock.install();
+  await host(page);
+  let reads = 0;
+  await localRoute(page, '**/api/history/sessions/active', async (route) => {
+    const seconds = reads++ * 5;
+    await route.fulfill({ json: { sessions: [{ uuid: 'slow-client', protocol: 'rtsp', device_name: 'Slow client',
+      target_fps: 60, uptime_seconds: seconds, frames_sent: seconds * 30 }] } });
+  });
+  await page.goto('/v2/');
+  const panel = page.locator('.intelligence-panel');
+  await expect(panel.getByRole('combobox', { name: 'Quality guidance session' })).toHaveValue('rtsp:slow-client');
+  for (let i = 1; i <= 6; i++) {
+    await page.clock.runFor(5000);
+    await expect(panel).toContainText(`${i} observations`);
+  }
+  await expect(panel).toContainText('Host output: 30.0 / 60 FPS');
+  await expect(panel.getByRole('status')).toContainText('Frame rate below target');
+  await panel.getByRole('button', { name: "Don't suggest these again for this host", exact: true }).click();
+  await expect(panel.getByRole('status')).toHaveCount(0);
+  await expect(panel.getByRole('button', { name: 'Restore dismissed suggestions' })).toBeVisible();
+  await panel.getByRole('button', { name: 'Restore dismissed suggestions' }).click();
+  await expect(panel.getByRole('status')).toContainText('Frame rate below target');
+  await panel.getByRole('combobox', { name: 'Vibe Intelligence mode' }).selectOption('off');
+  await expect(panel).toContainText('Recommendations are turned off.');
+  const before = reads;
+  await page.clock.runFor(15000);
+  expect(reads).toBe(before);
 });
