@@ -253,3 +253,13 @@ The recovery workflow republishes original artifacts from runs 41437547290 and
 Arch and update-contract gates. It does not rebuild, promote to Main, overwrite a
 public release, or install anything on a host. Bootstrap instructions should use
 only an existing public release with the expected updater/checksum assets.
+
+
+The current verified bootstrap release is
+[host-beta-41446338471-1](https://github.com/nyteghost/vibebeam/releases/tag/host-beta-41446338471-1)
+(commit `66344bf`, including Main/Beta controls). Its updater SHA-256 is
+`c99f47acf963f0d7bc0d294bfec1758ab105687fad249a8a708888bd70bd840c`.
+The older `host-beta-41437547290-1` publication was rejected with HTTP 403 by
+GitHub's integration token. Recovery uses the existing `GH_TOKEN` release secret
+when configured, otherwise the job token; no secret value is read or exported.
+The newer public release remains usable regardless of historical recovery.
