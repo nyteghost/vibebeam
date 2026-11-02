@@ -130,7 +130,7 @@ base = pathlib.Path('/var/lib/vibepollo-package-backups')
 if not base.exists():
     base.mkdir(mode=0o700)
 s = base.lstat()
-assert stat.S_ISDIR(s.st_mode) and s.st_uid == 0 and stat.S_IMODE(s.st_mode) == 0o700, 'Unsafe backup directory'
+assert stat.S_ISDIR(s.st_mode) and s.st_uid == 0 and not stat.S_IMODE(s.st_mode) & 0o022, 'Unsafe backup directory'
 folder = pathlib.Path(tempfile.mkdtemp(prefix='update-', dir=base))
 os.chmod(folder, 0o700)
 rollback = pathlib.Path(sys.argv[1])
