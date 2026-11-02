@@ -47,6 +47,9 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(result['size'], package.stat().st_size)
             self.assertEqual(result['sha256'], hashlib.sha256(package.read_bytes()).hexdigest())
             self.assertIn('vibebeam-update.py', (root / 'SHA256SUMS').read_text())
+            identity = (root / 'host-update-identity.txt').read_text()
+            self.assertIn(result['sha256'], identity)
+            self.assertIn(result['source_commit'], identity)
             self.assertEqual((root / 'vibebeam-update.py').read_text(), '# matching source\n')
 
     def test_wrong_source_package_and_nonexecutable_updater_fail(self):

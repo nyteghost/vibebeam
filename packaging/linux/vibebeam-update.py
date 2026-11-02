@@ -57,9 +57,9 @@ def get_json(url):
     return json.loads(output.getvalue())
 
 
-def release_order(release):
-    match = re.fullmatch(r'host-beta-(\d+)-(\d+)', str(release.get('tag_name', '')))
-    if not match or release.get('draft') or release.get('prerelease') is not True:
+def release_order(release, channel="beta"):
+    match = re.fullmatch(r'host-' + re.escape(channel) + r'-(\d+)-(\d+)', str(release.get('tag_name', '')))
+    if not match or release.get('draft') or release.get('prerelease') is not (channel == 'beta'):
         return None
     return tuple(map(int, match.groups()))
 
@@ -70,10 +70,11 @@ def asset_url(tag, name):
     return f'https://github.com/{REPO}/releases/download/{tag}/{name}'
 
 
-def validate_manifest(release, manifest):
-    order = release_order(release)
+def validate_manifest(release, manifest, channel="beta"):
+    order = release_order(release, channel)
+    branches = {BRANCH} if channel == "beta" else {"main", "master"}
     if (not order or manifest.get('schema_version') != 1 or manifest.get('repository') != REPO
-            or manifest.get('branch') != BRANCH or manifest.get('channel') != 'beta'
+            or manifest.get('branch') not in branches or manifest.get('channel') != channel
             or manifest.get('architecture') != 'x86_64'
             or str(manifest.get('workflow_run_id')) != str(order[0])
             or str(manifest.get('run_attempt')) != str(order[1])):
@@ -94,6 +95,14 @@ def validate_manifest(release, manifest):
                and a.get('size') == size for a in release.get('assets', [])):
         raise ValueError('Package not present in release')
     return expected
+
+
+def uri_channel(uri):
+    parsed = urllib.parse.urlsplit(uri)
+    if (parsed.scheme != 'vibebeam-update' or parsed.netloc not in {'beta', 'main'}
+            or parsed.path not in {'', '/'} or parsed.query or parsed.fragment):
+        raise ValueError('Invalid desktop update request')
+    return parsed.netloc
 
 
 def package_identity(path):
@@ -174,7 +183,11 @@ def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--check', action='store_true', help='Only check; no sudo or installation')
     parser.add_argument('--rollback', help='Existing package matching the installed version')
+    selection = parser.add_mutually_exclusive_group()
+    selection.add_argument('--channel', choices=['beta', 'main'], help='Update channel (default: beta)')
+    selection.add_argument('--uri', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
+    channel = uri_channel(args.uri) if args.uri is not None else (args.channel or 'beta')
     if os.geteuid() == 0:
         raise ValueError('Run as your ordinary desktop user, without sudo')
     lock = acquire_lock()  # Hold the descriptor throughout this process.
@@ -185,23 +198,23 @@ def main(argv=None):
         items = get_json(f'{API}/releases?per_page=100&page={page}')
         if not isinstance(items, list):
             raise ValueError('Invalid GitHub release response')
-        releases.extend(r for r in items if release_order(r))
+        releases.extend(r for r in items if release_order(r, channel))
         if len(items) < 100:
             break
     if not releases:
-        raise ValueError('No published, tested host beta is available yet')
-    release = max(releases, key=release_order)
-    manifest = get_json(asset_url(release['tag_name'], 'vibebeam-beta.json'))
-    url = validate_manifest(release, manifest)
-    print(f"Available beta: {manifest['source_commit'][:8]} ({release['tag_name']})", flush=True)
+        raise ValueError(f'No published, verified {channel.title()} host package is available yet. No channel fallback was used.')
+    release = max(releases, key=lambda release: release_order(release, channel))
+    manifest = get_json(asset_url(release['tag_name'], f'vibebeam-{channel}.json'))
+    url = validate_manifest(release, manifest, channel)
+    print(f"Available {channel.title()}: {manifest['source_commit'][:8]} ({release['tag_name']})", flush=True)
     identity_file = Path('/usr/share/vibebeam/beta-build.json')
     if identity_file.is_file():
         installed_build = json.loads(identity_file.read_text())
         previous_run = str(installed_build.get('workflow_run_id', ''))
-        if previous_run.isdigit() and int(previous_run) > manifest['workflow_run_id']:
-            raise ValueError('Refusing a beta older than the installed build')
+        if installed_build.get('channel', 'beta') == channel and previous_run.isdigit() and int(previous_run) > manifest['workflow_run_id']:
+            raise ValueError('Refusing an older build within the selected channel')
         if installed_build.get('source_commit') == manifest['source_commit']:
-            print('This beta commit is already installed. No changes made.')
+            print('This commit is already installed. No changes made.')
             return 0
     if args.check:
         return 0
@@ -223,7 +236,7 @@ def main(argv=None):
     cache.chmod(0o700)
     with tempfile.TemporaryDirectory(prefix='download-', dir=cache) as scratch:
         package = Path(scratch) / manifest['package']
-        print('Downloading verified beta package...', flush=True)
+        print(f'Downloading verified {channel.title()} package...', flush=True)
         with package.open('xb') as target:
             size = download(url, target, manifest['size'])
         if size != manifest['size'] or hashlib.sha256(package.read_bytes()).hexdigest() != manifest['sha256']:
@@ -244,17 +257,23 @@ def main(argv=None):
     if tray.is_file() and (os.environ.get('DISPLAY') or os.environ.get('WAYLAND_DISPLAY')):
         subprocess.Popen([str(tray)], stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
                          stderr=subprocess.DEVNULL, start_new_session=True)
-    print('Beta package installed; service is active. Verify a real streaming session next.')
+    print('Selected-channel package installed; service is active. Verify a real streaming session next.')
     print('Dashboard: https://127.0.0.1:47990/v2/')
     return 0
 
 
 if __name__ == '__main__':
     try:
-        sys.exit(main())
+        result = main()
     except (ValueError, OSError, subprocess.CalledProcessError) as error:
         print(f'Update stopped: {error}', file=sys.stderr)
-        sys.exit(1)
+        result = 1
     except (KeyboardInterrupt, EOFError):
         print('\nUpdate interrupted. Check package/service status before retrying.', file=sys.stderr)
-        sys.exit(1)
+        result = 1
+    if '--uri' in sys.argv and sys.stdin.isatty():
+        try:
+            input('Press Enter to close this update window.')
+        except (KeyboardInterrupt, EOFError):
+            pass
+    sys.exit(result)

@@ -43,7 +43,7 @@ jobs:
         working-directory: src_assets/common/assets/web
       - run: npx playwright install --with-deps chromium
         working-directory: src_assets/common/assets/web
-      - run: npm run test:e2e -- e2e/dashboard-recovery.spec.ts e2e/connection-doctor.spec.ts
+      - run: npm run test:e2e -- e2e/dashboard-recovery.spec.ts e2e/connection-doctor.spec.ts e2e/host-updates.spec.ts
         working-directory: src_assets/common/assets/web
 
   publish-beta:
@@ -75,6 +75,7 @@ jobs:
           python3 .github/scripts/prepare_host_beta.py release "$SOURCE_SHA" "$RUN_ID" "$ATTEMPT"
           tag="host-beta-$RUN_ID-$ATTEMPT"
           printf 'Vibebeam host beta at commit %s.\n\nValidated Arch package, component tests, web unit/build and dashboard recovery/diagnostics tests. Physical KDE Wayland/NVENC streaming still requires testing.\n\nExisting updater: `vibebeam-update`. First installation: see docs/BETA_CACHYOS_TESTING.md on the beta branch.\n\nManual updates only. Close streaming clients before installing. Stable latest release is unchanged.\n' "$SOURCE_SHA" > release-notes.md
+          cat release/host-update-identity.txt >> release-notes.md
           gh release create "$tag" --repo "$REPO" --target "$SOURCE_SHA" \
             --title "Vibebeam beta ${SOURCE_SHA:0:8}" --draft --prerelease --latest=false \
             --notes-file release-notes.md release/*.pkg.tar.zst \

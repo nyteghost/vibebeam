@@ -23,6 +23,10 @@ packages need the one-time bootstrap described in the
 [CachyOS beta guide](docs/BETA_CACHYOS_TESTING.md#single-command-manual-beta-updates-archcachyos-x86_64).
 This path stays on beta; physical streaming validation remains required.
 Beta dashboard version labels show the running build's short commit.
+Maintenance also includes **Main/Beta → Check for update → Update**, which opens
+the native updater on the local Arch/CachyOS host. Password/install approval and
+backups remain required. Main stays unavailable until a verified production
+package is approved and published; selecting it never installs a beta.
 
 ## Install on Linux
 

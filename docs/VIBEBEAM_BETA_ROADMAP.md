@@ -200,3 +200,16 @@ Implemented on beta, awaiting the linked hosted package and physical install che
 - Modern host version labels display `Beta · SHORTCOMMIT`; raw API version preserved.
 - Remaining: authenticated active-session preflight, physical CachyOS update/rollback
   and streaming verification, and independent release signing. No automatic updates.
+
+
+### Button-driven channel updates
+
+- Implemented Maintenance Main/Beta selection, verified availability and commit,
+  native desktop handoff, channel persistence and fresh authenticated idle checks.
+- Native URI accepts only literal channels; ordinary-user handler opens a terminal
+  and retains the existing backup, rollback, package and permission checks.
+- Release API body carries bounded manifest identity for CORS-safe UI checks.
+- Main protocol is supported but unavailable until an approved verified production
+  package exists. No promotion or production branch change was made.
+- Remaining physical checks: KDE URI registration, browser prompt, terminal/password
+  interaction, actual update/rollback and post-update streaming.

@@ -496,6 +496,7 @@ jobs:
             echo "::error::The native package unexpectedly contains the legacy per-user host service."
             exit 1
           fi
+          grep -qx 'usr/share/applications/vibebeam-update.desktop' <<< "${package_files}"
           grep -qx 'usr/bin/vibebeam-update' <<< "${package_files}"
           grep -qx 'usr/share/vibebeam/beta-build.json' <<< "${package_files}"
           grep -qx 'usr/share/applications/io.github.Nonary.vibepollo.desktop' <<< "${package_files}"

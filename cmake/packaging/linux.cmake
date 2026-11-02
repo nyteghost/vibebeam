@@ -102,8 +102,14 @@ else()
             # Independent of tray availability: the beta updater is a terminal tool.
             install(PROGRAMS "${CMAKE_SOURCE_DIR}/packaging/linux/vibebeam-update.py"
                     DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME "vibebeam-update")
+            install(FILES "${CMAKE_SOURCE_DIR}/packaging/linux/vibebeam-update.desktop"
+                    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/applications")
+            set(_host_update_channel "main")
+            if(PROJECT_VERSION_BRANCH MATCHES "^beta/")
+                set(_host_update_channel "beta")
+            endif()
             file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/beta-build.json"
-                    "{\"source_commit\":\"${GITHUB_COMMIT}\",\"workflow_run_id\":\"$ENV{GITHUB_RUN_ID}\"}\n")
+                    "{\"source_commit\":\"${GITHUB_COMMIT}\",\"channel\":\"${_host_update_channel}\",\"workflow_run_id\":\"$ENV{GITHUB_RUN_ID}\"}\n")
             install(FILES "${CMAKE_CURRENT_BINARY_DIR}/beta-build.json"
                     DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/vibebeam")
         endif()

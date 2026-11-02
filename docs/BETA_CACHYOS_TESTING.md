@@ -188,3 +188,52 @@ source/package identity, rollback package matching, and generated release assets
 The hosted build checks package contents and runs web/browser tests. A real
 CachyOS installation, permission prompts, rollback restoration, tray visibility,
 and NVENC/Wayland streaming must still be verified on the physical host.
+
+## Update button and Main/Beta selector
+
+On the gaming PC, open **Maintenance → Host updates** at
+`https://127.0.0.1:47990/v2/maintenance`. Select **Beta** or **Main**, press
+**Check for update**, review the available commit, then press **Update → Open
+installer**. The browser may ask to open **Vibebeam Update**. The native update
+window then downloads/verifies the selected channel and handles backup,
+password approval, pacman confirmation, and restart. It rechecks availability;
+a newer verified build may appear between the browser check and installation.
+The desktop window stays open until you press Enter, so failures remain readable.
+This is a manual button-triggered update, not unattended background installation.
+
+The choice persists in that browser when storage is available. A channel change
+clears the previous candidate. No channel falls back to the other. The host
+refreshes authenticated session state immediately before handoff and refuses it
+if a stream/application is active, or the session state cannot be confirmed.
+The native installer retains its explicit disconnect/approval prompt because a
+protocol URI can be launched from other applications too.
+
+Main means production (`master` in this repository today; the manifest also
+supports `main` after a branch rename). Only non-prerelease
+`host-main-RUN-ATTEMPT` packages with a matching Main manifest are accepted.
+There is no verified Main package in this new format yet. Until one is explicitly
+approved and published, the Main check reports that it is unavailable and leaves
+Update disabled. Existing `v2.0.1-beta.*` releases are not Main candidates.
+No main/production branch changes or promotion are part of this beta work.
+
+The browser reads a bounded copy of the manifest embedded in the release API
+body, avoiding cross-origin downloads from GitHub's release-asset host. The
+native installer independently downloads and validates the full manifest, package
+identity, size, checksum and rollback preflight. The desktop handler accepts only
+`vibebeam-update://beta` or `vibebeam-update://main`, with an optional trailing
+slash. URLs cannot supply package paths, shell commands, credentials, or arbitrary
+hosts. Native commands are executed as argument arrays, never through a shell.
+
+Installation handoff is enabled only from a loopback browser on an x86_64 Linux
+host. Browsers using a remote LAN address can check availability but cannot launch
+the local desktop handler. Use the loopback page on the actual gaming PC. The Arch package installs the URI handler and its
+desktop database dependencies. The first package with this handler still needs
+the earlier terminal bootstrap; subsequent updates can start from the button.
+If no installer opens, confirm that the new package is installed, allow the
+browser's external-application prompt, or run `vibebeam-update --channel beta`
+(or `--channel main`) in a terminal.
+
+Unit/browser tests cover channel separation, metadata substitution, literal URI
+parsing, local-host restrictions, persisted choice, cancellation, and a session
+that becomes active after checking. Real KDE/Chrome URI registration, terminal
+selection, sudo prompts and package installation remain physical CachyOS tests.

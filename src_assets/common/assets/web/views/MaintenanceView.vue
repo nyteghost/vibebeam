@@ -4,6 +4,7 @@ import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
 import ReleaseNotes from '@/components/settings/ReleaseNotes.vue';
+import HostUpdateControls from '@/components/settings/HostUpdateControls.vue';
 import LinuxCaptureStatus from '@/components/settings/LinuxCaptureStatus.vue';
 import LinuxDisplayHealth from '@/components/settings/LinuxDisplayHealth.vue';
 import { ApiError, apiDelete, apiGet, apiPost } from '@/api/client';
@@ -788,6 +789,7 @@ onBeforeUnmount(() => {
           }}</RouterLink>
         </div>
       </section>
+      <HostUpdateControls class="maintenance-section" />
       <ReleaseNotes class="maintenance-section" :installed-version="versionLabel()" />
       <section class="maintenance-section" aria-labelledby="installed-version-title">
         <div class="maintenance-section__heading">

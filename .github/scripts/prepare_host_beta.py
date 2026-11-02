@@ -47,6 +47,7 @@ def prepare(root, sha, run, attempt):
                     package=package.name, package_version=fields['pkgver'],
                     size=package.stat().st_size, sha256=checksum)
     (root / 'vibebeam-beta.json').write_text(json.dumps(manifest, indent=2) + '\n')
+    (root / 'host-update-identity.txt').write_text('\n<!-- host-update: ' + json.dumps(manifest, separators=(',', ':')) + ' -->\n')
     # A bootstrap copy is convenient for older packages without the updater command.
     with tarfile.open(source, 'r:gz') as archive:
         (root / 'vibebeam-update.py').write_bytes(archive.extractfile('packaging/linux/vibebeam-update.py').read())

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=Vibebeam Update
+Comment=Verify and install a selected-channel Vibebeam host update
+Exec=/usr/bin/vibebeam-update --uri %u
+TryExec=/usr/bin/vibebeam-update
+Terminal=true
+NoDisplay=true
+MimeType=x-scheme-handler/vibebeam-update;
+Categories=System;

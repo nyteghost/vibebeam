@@ -28,6 +28,37 @@ def fixture():
 
 
 class UpdaterTests(unittest.TestCase):
+    def test_desktop_handler_runs_fixed_command_as_user(self):
+        import configparser
+        config = configparser.ConfigParser(interpolation=None)
+        config.read(ROOT / 'packaging/linux/vibebeam-update.desktop')
+        entry = config['Desktop Entry']
+        self.assertEqual(entry['Exec'], '/usr/bin/vibebeam-update --uri %u')
+        self.assertEqual(entry['Terminal'], 'true')
+        self.assertEqual(entry['MimeType'], 'x-scheme-handler/vibebeam-update;')
+        self.assertEqual(entry['NoDisplay'], 'true')
+
+    def test_desktop_uris_allow_only_literal_channels(self):
+        for channel in ['beta', 'main']:
+            self.assertEqual(u.uri_channel('vibebeam-update://' + channel), channel)
+            self.assertEqual(u.uri_channel('vibebeam-update://' + channel + '/'), channel)
+        for uri in ['https://beta', 'vibebeam-update://beta?cmd=evil',
+                    'vibebeam-update://beta/path', 'vibebeam-update://user@beta',
+                    'vibebeam-update://beta#main', 'vibebeam-update://beta:123']:
+            with self.subTest(uri=uri), self.assertRaises(ValueError): u.uri_channel(uri)
+
+    def test_main_requires_production_branch_and_nonprerelease(self):
+        release, manifest = fixture()
+        release['tag_name'] = 'host-main-12345-1'
+        release['prerelease'] = False
+        manifest['channel'] = 'main'
+        manifest['branch'] = 'master'
+        release['assets'][0]['browser_download_url'] = u.asset_url(release['tag_name'], manifest['package'])
+        self.assertIsNotNone(u.validate_manifest(release, manifest, 'main'))
+        with self.assertRaises(ValueError): u.validate_manifest(release, manifest, 'beta')
+        manifest['branch'] = u.BRANCH
+        with self.assertRaises(ValueError): u.validate_manifest(release, manifest, 'main')
+
     def test_expected_manifest(self):
         release, manifest = fixture()
         self.assertEqual(u.validate_manifest(release, manifest), release['assets'][0]['browser_download_url'])
