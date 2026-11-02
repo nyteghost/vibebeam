@@ -107,3 +107,31 @@ TEST(InputValidation, HapticsAnnouncementRequiresExactProtocolLength) {
     EXPECT_EQ(static_cast<bool>(input::validation::validate_packet(bytes)), length == sizeof(packet));
   }
 }
+
+TEST(InputValidation, FixedSizeProtocolPacketsRejectTruncationAndTrailingBytes) {
+  const std::pair<std::uint32_t, std::size_t> formats[] = {
+    {MOUSE_MOVE_REL_MAGIC_GEN5, sizeof(NV_REL_MOUSE_MOVE_PACKET)},
+    {MOUSE_MOVE_ABS_MAGIC, sizeof(NV_ABS_MOUSE_MOVE_PACKET)},
+    {MOUSE_BUTTON_DOWN_EVENT_MAGIC_GEN5, sizeof(NV_MOUSE_BUTTON_PACKET)},
+    {MOUSE_BUTTON_UP_EVENT_MAGIC_GEN5, sizeof(NV_MOUSE_BUTTON_PACKET)},
+    {SCROLL_MAGIC_GEN5, sizeof(NV_SCROLL_PACKET)},
+    {SS_HSCROLL_MAGIC, sizeof(SS_HSCROLL_PACKET)},
+    {KEY_DOWN_EVENT_MAGIC, sizeof(NV_KEYBOARD_PACKET)},
+    {KEY_UP_EVENT_MAGIC, sizeof(NV_KEYBOARD_PACKET)},
+    {MULTI_CONTROLLER_MAGIC_GEN5, sizeof(NV_MULTI_CONTROLLER_PACKET)},
+    {SS_TOUCH_MAGIC, sizeof(SS_TOUCH_PACKET)},
+    {SS_PEN_MAGIC, sizeof(SS_PEN_PACKET)},
+    {SS_CONTROLLER_ARRIVAL_MAGIC, sizeof(SS_CONTROLLER_ARRIVAL_PACKET)},
+    {SS_CONTROLLER_TOUCH_MAGIC, sizeof(SS_CONTROLLER_TOUCH_PACKET)},
+    {SS_CONTROLLER_MOTION_MAGIC, sizeof(SS_CONTROLLER_MOTION_PACKET)},
+    {SS_CONTROLLER_BATTERY_MAGIC, sizeof(SS_CONTROLLER_BATTERY_PACKET)},
+  };
+  for (const auto &[magic, size] : formats) {
+    for (const auto length : {size - 1, size, size + 1}) {
+      std::vector<std::uint8_t> bytes(length);
+      write_u32_be(bytes, 0, length - sizeof(std::uint32_t));
+      write_u32_le(bytes, sizeof(std::uint32_t), magic);
+      EXPECT_EQ(static_cast<bool>(input::validation::validate_packet(bytes)), length == size) << magic << ": " << length;
+    }
+  }
+}
