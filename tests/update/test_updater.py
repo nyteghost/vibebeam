@@ -102,6 +102,48 @@ class UpdaterTests(unittest.TestCase):
             self.assertEqual(u.download('https://github.com/example', output, 25), 25)
             self.assertEqual(output.getvalue(), b'x' * 25)
 
+    def test_check_and_cancel_never_request_privilege(self):
+        release, manifest = fixture()
+        for args, answer in [(['--check'], 'UPDATE'), ([], 'cancel')]:
+            with self.subTest(args=args), \
+                 patch.object(u.os, 'geteuid', return_value=1000), \
+                 patch.object(u, 'acquire_lock', return_value=None), \
+                 patch.object(u.platform, 'machine', return_value='x86_64'), \
+                 patch.object(u.shutil, 'which', return_value='/usr/bin/pacman'), \
+                 patch.object(u, 'get_json', side_effect=[[release], manifest]), \
+                 patch.object(u, 'find_rollback', return_value=Path('/old-package')), \
+                 patch.object(u.subprocess, 'check_output', return_value='vibebeam 2.0.1-7'), \
+                 patch.object(u.subprocess, 'run') as run, \
+                 patch.object(u.sys.stdin, 'isatty', return_value=True), \
+                 patch('builtins.input', return_value=answer), \
+                 patch('sys.stdout', new_callable=io.StringIO):
+                self.assertEqual(u.main(args), 0)
+                run.assert_not_called()
+
+    def test_bad_checksum_stops_before_sudo_and_leaves_no_package(self):
+        release, manifest = fixture()
+        with tempfile.TemporaryDirectory() as home, \
+             patch.object(u.os, 'geteuid', return_value=1000), \
+             patch.object(u, 'acquire_lock', return_value=None), \
+             patch.object(u.platform, 'machine', return_value='x86_64'), \
+             patch.object(u.shutil, 'which', return_value='/usr/bin/pacman'), \
+             patch.object(u.Path, 'home', return_value=Path(home)), \
+             patch.object(u, 'get_json', side_effect=[[release], manifest]), \
+             patch.object(u, 'find_rollback', return_value=Path('/old-package')), \
+             patch.object(u.subprocess, 'check_output', return_value='vibebeam 2.0.1-7'), \
+             patch.object(u.subprocess, 'run') as run, \
+             patch.object(u.sys.stdin, 'isatty', return_value=True), \
+             patch('builtins.input', return_value='UPDATE'), \
+             patch('sys.stdout', new_callable=io.StringIO):
+            def bad_download(url, target, limit):
+                target.write(b'x' * 20)
+                return 20
+            with patch.object(u, 'download', side_effect=bad_download):
+                with self.assertRaisesRegex(ValueError, 'checksum'):
+                    u.main([])
+            run.assert_not_called()
+            self.assertEqual(list(Path(home).rglob('*.pkg.tar.zst')), [])
+
     def test_backup_program_is_syntax_valid_and_private(self):
         compile(u.BACKUP_PROGRAM, '<root-backup>', 'exec')
         self.assertIn('0o700', u.BACKUP_PROGRAM)

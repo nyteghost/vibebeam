@@ -108,6 +108,7 @@ def find_rollback(installed, supplied):
     candidates = [Path(supplied)] if supplied else [
         *sorted(Path('/var/cache/pacman/pkg').glob('vibebeam-*.pkg.tar.zst')),
         *sorted((Path.home() / '.cache/vibebeam-updates').glob('vibebeam-*.pkg.tar.zst')),
+        *sorted((Path.home() / 'Downloads').glob('Vibebeam-Beta*/*.pkg.tar.zst')),
     ]
     for candidate in candidates:
         if not candidate.is_file() or candidate.is_symlink():
@@ -155,13 +156,7 @@ print(folder)
 '''
 
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--check', action='store_true', help='Only check; no sudo or installation')
-    parser.add_argument('--rollback', help='Existing package matching the installed version')
-    args = parser.parse_args(argv)
-    if os.geteuid() == 0:
-        raise ValueError('Run as your ordinary desktop user, without sudo')
+def acquire_lock():
     runtime = Path(f'/run/user/{os.getuid()}')
     if not runtime.is_dir() or runtime.is_symlink() or runtime.stat().st_uid != os.getuid():
         raise ValueError('A private desktop runtime directory is required')
@@ -172,6 +167,17 @@ def main(argv=None):
     except BlockingIOError:
         os.close(lock)
         raise ValueError('Another Vibebeam updater is already running')
+    return lock
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--check', action='store_true', help='Only check; no sudo or installation')
+    parser.add_argument('--rollback', help='Existing package matching the installed version')
+    args = parser.parse_args(argv)
+    if os.geteuid() == 0:
+        raise ValueError('Run as your ordinary desktop user, without sudo')
+    lock = acquire_lock()  # Hold the descriptor throughout this process.
     if platform.machine() != 'x86_64' or not shutil.which('pacman'):
         raise ValueError('This updater currently supports Arch/CachyOS x86_64 only')
     releases = []

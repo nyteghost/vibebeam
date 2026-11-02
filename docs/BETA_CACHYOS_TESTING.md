@@ -138,7 +138,8 @@ An active systemd service does not prove capture or streaming is healthy.
 
 A package matching `pacman -Q vibebeam` must be available for rollback. The
 updater searches `/var/cache/pacman/pkg` and its private
-`~/.cache/vibebeam-updates` cache. If your verified rollback archive lives elsewhere:
+`~/.cache/vibebeam-updates` cache, plus the earlier
+`~/Downloads/Vibebeam-Beta*` download folders. If your verified rollback archive lives elsewhere:
 
 ```fish
 vibebeam-update --rollback /absolute/path/to/your-old-vibebeam.pkg.tar.zst
