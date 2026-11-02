@@ -1,0 +1,65 @@
+name: Recover tested host beta releases
+permissions: {}
+on:
+  push:
+    branches: [beta/host-download-20261028]
+    paths: [.github/workflows/recover-tested-host-beta.yml]
+  workflow_dispatch:
+concurrency:
+  group: recover-tested-host-beta
+  cancel-in-progress: false
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/beta/host-download-20261028'
+    strategy:
+      fail-fast: false
+      matrix:
+        run: ['41437547290', '41446338471']
+    runs-on: ubuntu-latest
+    timeout-minutes: 100
+    permissions:
+      contents: write
+      actions: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SOURCE_RUN: ${{ matrix.run }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+      - name: Wait for and validate the original build gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          gh run watch "$SOURCE_RUN" --repo "$REPO" --exit-status
+          gh api "repos/$REPO/actions/runs/$SOURCE_RUN" > original-run.json
+          gh api "repos/$REPO/actions/runs/$SOURCE_RUN/jobs?per_page=100" > original-jobs.json
+          python3 .github/scripts/validate_host_recovery.py original-run.json original-jobs.json > original-build.env
+          cat original-build.env >> "$GITHUB_ENV"
+          source original-build.env
+          git merge-base --is-ancestor "$SOURCE_SHA" HEAD
+      - name: Recover exact tested assets as a non-latest beta release
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="host-beta-$SOURCE_RUN-$ATTEMPT"
+          if gh release view "$tag" --repo "$REPO" --json isDraft --jq .isDraft > existing.txt 2>/dev/null; then
+            if grep -qx false existing.txt; then
+              echo 'Release already public; leaving assets unchanged.'
+              exit 0
+            fi
+            echo 'Existing draft requires inspection; no overwrite attempted.' >&2
+            exit 1
+          fi
+          gh run download "$SOURCE_RUN" --repo "$REPO" --name build-Archlinux --dir release
+          python3 .github/scripts/prepare_host_beta.py release "$SOURCE_SHA" "$SOURCE_RUN" "$ATTEMPT"
+          printf 'Recovered tested Vibebeam host beta at commit %s.\n\nOriginal build and component/web gates passed. Publication was skipped by the superseded-head rule; these are the original validated assets, without rebuilding. Physical CachyOS streaming still requires validation.\n\nSee docs/BETA_CACHYOS_TESTING.md on the beta branch for installation. This prerelease does not change stable latest.\n' "$SOURCE_SHA" > release-notes.md
+          cat release/host-update-identity.txt >> release-notes.md
+          gh release create "$tag" --repo "$REPO" --target "$SOURCE_SHA" \
+            --title "Vibebeam beta ${SOURCE_SHA:0:8}" --draft --prerelease --latest=false \
+            --notes-file release-notes.md release/*.pkg.tar.zst \
+            release/matching-host-source.tar.gz release/vibepollo.pkg.tar.gz \
+            release/linux-provenance.json release/vibebeam-beta.json \
+            release/vibebeam-update.py release/SHA256SUMS
+          gh release edit "$tag" --repo "$REPO" --draft=false --prerelease --latest=false

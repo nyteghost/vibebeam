@@ -213,3 +213,12 @@ Implemented on beta, awaiting the linked hosted package and physical install che
   package exists. No promotion or production branch change was made.
 - Remaining physical checks: KDE URI registration, browser prompt, terminal/password
   interaction, actual update/rollback and post-update streaming.
+
+### Publication recovery
+
+- Removed the superseded-head skip that could produce a green run with no release.
+- Added recovery publication for the two affected updater builds, with original
+  source/branch/repository and successful gate checks before reading artifacts.
+- Existing public releases are preserved; releases remain prereleases/non-latest.
+- Added negative admission tests for forks, failed/skipped/incomplete gates and
+  substituted source identities. No host installation is performed by recovery.

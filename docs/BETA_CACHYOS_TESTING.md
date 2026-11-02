@@ -237,3 +237,19 @@ Unit/browser tests cover channel separation, metadata substitution, literal URI
 parsing, local-host restrictions, persisted choice, cancellation, and a session
 that becomes active after checking. Real KDE/Chrome URI registration, terminal
 selection, sudo prompts and package installation remain physical CachyOS tests.
+
+### Missing release after a successful build
+
+Earlier beta runs could finish successfully while the superseded-head rule skipped
+publication. A successful Actions run alone therefore did not prove that a
+`host-beta-*` release existed, and bootstrap could stop with `release not found`.
+If that happened, `vibebeam-update` was not installed; do not add a shell alias or
+retry the missing command. The corrected publisher creates a unique prerelease
+for every passing build. Clients choose the newest run identity, so an older
+build finishing later cannot replace a newer available update.
+
+The recovery workflow republishes original artifacts from runs 41437547290 and
+41446338471 after validating the original repository/branch/source and both the
+Arch and update-contract gates. It does not rebuild, promote to Main, overwrite a
+public release, or install anything on a host. Bootstrap instructions should use
+only an existing public release with the expected updater/checksum assets.

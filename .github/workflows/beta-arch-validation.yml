@@ -66,11 +66,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          head=$(gh api "repos/$REPO/git/ref/heads/beta/host-download-20261028" --jq .object.sha)
-          if [[ "$head" != "$SOURCE_SHA" ]]; then
-            echo 'Superseded beta; skipping publication.'
-            exit 0
-          fi
+          # Every passing commit gets its own unique release. Clients order by run ID,
+          # so a slower older build cannot replace a newer available update.
           gh run download "$RUN_ID" --repo "$REPO" --name build-Archlinux --dir release
           python3 .github/scripts/prepare_host_beta.py release "$SOURCE_SHA" "$RUN_ID" "$ATTEMPT"
           tag="host-beta-$RUN_ID-$ATTEMPT"
