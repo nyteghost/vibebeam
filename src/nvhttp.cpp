@@ -6,6 +6,11 @@
 #include "upload_stream_copy.h"
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
+#if defined(__linux__)
+#include "platform/linux/capture_status.h"
+#endif
+#include "stream_check_report.h"
+
 // standard includes
 #if !defined(_WIN32)
   #include <fcntl.h>
@@ -7119,6 +7124,39 @@ launch_session->exact_target_hold.reset();
     response->close_connection_after_response = true;
   }
 
+  void getStreamingCheck(resp_https_t response, req_https_t request) {
+    const auto client = get_verified_cert(request);
+    const bool allowed = has_client_perm(client, PERM::_allow_view);
+    bool own_session = false;
+    if (client && allowed) {
+      const auto sessions = rtsp_stream::get_all_session_uuids();
+      own_session = std::find(sessions.begin(), sessions.end(), client->uuid) != sessions.end();
+    }
+    if (!stream_check::authorized(client.has_value(), allowed, own_session)) {
+      response->write(SimpleWeb::StatusCode::client_error_forbidden);
+      response->close_connection_after_response = true;
+      return;
+    }
+    auto report = stream_check::base_report();
+    report["host_version"] = PROJECT_VERSION;
+    report["host_commit"] = PROJECT_VERSION_COMMIT;
+#if defined(__linux__)
+    const auto observation = platf::linux_capture_status::managed_transfer();
+    const bool active = platf::linux_capture_status::managed_event_capture_active();
+    if (active && observation) {
+      const auto age = std::chrono::duration<double>(std::chrono::steady_clock::now() - observation->observed_at).count();
+      report["capture"] = stream_check::capture_report(active, observation->cpu_upload, observation->samples,
+        observation->mean_us, observation->max_us, age);
+    }
+#endif
+    SimpleWeb::CaseInsensitiveMultimap headers;
+    headers.emplace("Content-Type", "application/json");
+    headers.emplace("Cache-Control", "no-store");
+    headers.emplace("X-Content-Type-Options", "nosniff");
+    response->write(SimpleWeb::StatusCode::success_ok, report.dump(), headers);
+    response->close_connection_after_response = true;
+  }
+
   void getAbrCapabilities(resp_https_t response, req_https_t request) {
     print_req<SunshineHTTPS>(request);
 
@@ -7589,6 +7627,7 @@ launch_session->exact_target_hold.reset();
         cancel(std::move(resp), std::move(req));
       });
     };
+    https_server.resource["^/actions/streaming-check$"]["GET"] = getStreamingCheck;
     https_server.resource["^/actions/clipboard$"]["GET"] = getClipboard;
     https_server.resource["^/actions/clipboard$"]["POST"] = setClipboard;
     https_server.resource["^/actions/upload$"]["POST"] = uploadFile;

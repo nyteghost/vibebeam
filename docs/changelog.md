@@ -1,5 +1,12 @@
 # Changelog
 
+## Passive streaming check companion (beta)
+
+- Add paired-client, read-only capture diagnostics with view and own-session authorization.
+- Publish bounded in-memory managed transfer observations; mark inactive/stale data unavailable.
+- Exclude raw logs and identifying fields; manual audio/cursor/restoration checks remain pending.
+- See [companion streaming check](STREAMING_CHECK.md) for usage and limitations.
+
 ## Vibebeam beta — November 2 log reliability work
 
 - Validate nullable physical display observations atomically; retain previous baseline on malformed data.

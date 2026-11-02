@@ -4,6 +4,14 @@ Vibebeam is the companion host for [Vibelight](https://github.com/nyteghost/vibe
 
 A scheduled workflow keeps a branch named `upstream-main` identical to Nonary's Vibepollo and opens a pull request here when there are new changes.
 
+## Passive streaming check (beta)
+
+The [companion diagnostic endpoint](docs/STREAMING_CHECK.md) lets a paired
+Vibelight desktop client collect recent capture-path observations without
+changing the stream. Reports exclude raw logs and identifying network data.
+Older hosts still support client-only checks. Download only after the exact
+Windows/Arch validations pass; physical cleanup checks remain manual.
+
 ## November 2 beta reliability investigation
 
 The [log review and hardware test guide](docs/VIBEBEAM_LOG_REVIEW_2026-11-02.md)

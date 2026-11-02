@@ -11,6 +11,7 @@
 // local includes
 #include "dmabuf_modifier_query.h"
 #include "graphics.h"
+#include "capture_status.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
 #include "src/video.h"
@@ -926,6 +927,9 @@ namespace egl {
     total_us += elapsed_us;
     max_us = std::max(max_us, elapsed_us);
     if (samples == 1 || samples == 300) {
+      if (surface.direct_import_required) {
+        platf::linux_capture_status::observe_managed_transfer({path == 1, samples, total_us / samples, max_us, std::chrono::steady_clock::now()});
+      }
       BOOST_LOG(info) << "Capture transfer CPU submission overhead: samples=" << samples
                       << " mean_us=" << total_us / samples << " max_us=" << max_us
                       << "; includes import attempt and fallback upload; excludes asynchronous GPU completion, color conversion, encoding and end-to-end latency";

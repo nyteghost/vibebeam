@@ -82,3 +82,27 @@ TEST(DmabufModifierQuery, RejectsUnboundedAndChangingDriverCounts) {
   const auto failed = [](int, std::uint64_t *, unsigned int *, int *) { return false; };
   EXPECT_EQ((egl::query_modifier_support<std::uint64_t, unsigned int>(0, failed)), egl::modifier_support_e::unknown);
 }
+
+#include "src/stream_check_report.h"
+#include <limits>
+
+TEST(StreamingCheck, RequiresVerifiedViewPermissionAndOwnSession) {
+  for (int mask = 0; mask < 8; ++mask) {
+    EXPECT_EQ(stream_check::authorized(mask & 1, mask & 2, mask & 4), mask == 7);
+  }
+}
+
+TEST(StreamingCheck, CaptureRejectsInactiveStaleAndMalformedObservations) {
+  EXPECT_EQ(stream_check::capture_report(false, false, 300, 20, 40, 0)["status"], "unavailable");
+  EXPECT_EQ(stream_check::capture_report(true, false, 300, 20, 40, 10.1)["status"], "unavailable");
+  EXPECT_EQ(stream_check::capture_report(true, false, 300, 20, 40, -1)["status"], "unavailable");
+  EXPECT_EQ(stream_check::capture_report(true, false, 0, 20, 40, 0)["status"], "unavailable");
+  EXPECT_EQ(stream_check::capture_report(true, false, 300, std::numeric_limits<double>::quiet_NaN(), 40, 0)["status"], "unavailable");
+  const auto valid = stream_check::capture_report(true, true, 300, 20, 40, 5);
+  EXPECT_EQ(valid["path"], "linear_cpu_upload");
+  EXPECT_EQ(valid["cpu_submission_mean_us"], 20);
+  const auto report = stream_check::base_report();
+  EXPECT_EQ(report["schema"], 1);
+  EXPECT_FALSE(report.contains("logs"));
+  EXPECT_FALSE(report.contains("client_uuid"));
+}

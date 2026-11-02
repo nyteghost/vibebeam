@@ -236,3 +236,14 @@ Implemented on beta, awaiting the linked hosted package and physical install che
 - Existing public releases are preserved; releases remain prereleases/non-latest.
 - Added negative admission tests for forks, failed/skipped/incomplete gates and
   substituted source identities. No host installation is performed by recovery.
+
+## Companion streaming check (November 2)
+
+- [x] Paired-certificate/view/own-session read-only endpoint and versioned minimal schema.
+- [x] Recent managed-capture transfer observations; nonblocking producer and explicit host-wide scope.
+- [x] Authorization, freshness and malformed-observation regression cases.
+- [ ] Verify the exact hosted Arch package and Windows companion builds.
+- [ ] Physical remote/LAN comparison and cursor/audio/physical display restoration checks.
+- [ ] Per-session encoder/applied-bitrate observations and optional recorded cleanup checks.
+
+[Protocol, scope and safety](STREAMING_CHECK.md). No automated production installation.
