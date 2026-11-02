@@ -9,6 +9,7 @@
 #include <mutex>
 
 // local includes
+#include "dmabuf_modifier_query.h"
 #include "graphics.h"
 #include "src/file_handler.h"
 #include "src/logging.h"
@@ -874,6 +875,38 @@ namespace egl {
     return rgb;
   }
 
+  // Diagnostic only: a driver may create an EGLImage which can be sampled
+  // exclusively as GL_TEXTURE_EXTERNAL_OES, not by our GL_TEXTURE_2D shaders.
+  // Never change a real modifier or infer CPU-linear eligibility from this query.
+  void log_import_modifier_support(display_t::pointer display, const surface_descriptor_t &surface) {
+    const auto *renderer = gl::ctx.GetString(GL_RENDERER);
+    BOOST_LOG(info) << "Capture GL renderer=" << (renderer ? reinterpret_cast<const char *>(renderer) : "unavailable");
+    const auto *extensions = eglQueryString(display, EGL_EXTENSIONS);
+    if (!extensions || std::string_view {extensions}.find("EGL_EXT_image_dma_buf_import_modifiers") == std::string_view::npos) {
+      BOOST_LOG(info) << "EGL DMA-BUF modifier query unavailable; import compatibility is unverified";
+      return;
+    }
+    using query_t = EGLBoolean (*)(EGLDisplay, EGLint, EGLint, EGLuint64KHR *, EGLBoolean *, EGLint *);
+    const auto query = reinterpret_cast<query_t>(eglGetProcAddress("eglQueryDmaBufModifiersEXT"));
+    const auto support = query ? query_modifier_support<EGLuint64KHR, EGLBoolean>(surface.modifier,
+      [&](int capacity, EGLuint64KHR *modifiers, EGLBoolean *external, int *count) {
+        return query(display, surface.fourcc, capacity, modifiers, external, count) == EGL_TRUE;
+      }) : modifier_support_e::unknown;
+    switch (support) {
+      case modifier_support_e::texture_2d:
+      case modifier_support_e::external_only:
+        BOOST_LOG(info) << "EGL advertised source format/modifier: external_only=" << (support == modifier_support_e::external_only)
+                        << "; converter uses GL_TEXTURE_2D; advertised support does not prove this exporter's buffer is importable";
+        break;
+      case modifier_support_e::absent:
+        BOOST_LOG(info) << "Source modifier is absent from EGL's advertised format/modifier list; compatibility is unverified";
+        break;
+      default:
+        BOOST_LOG(info) << "EGL DMA-BUF modifier query failed or returned an invalid count; import compatibility is unverified";
+        break;
+    }
+  }
+
   std::optional<rgb_t> source_importer_t::import(display_t::pointer display, const surface_descriptor_t &surface) {
     const auto started = std::chrono::steady_clock::now();
     auto result = import_source(display, surface);
@@ -884,6 +917,7 @@ namespace egl {
     if (path != previous_path) {
       BOOST_LOG(info) << "Capture transfer path=" << (path == 0 ? "EGL DMA-BUF GPU import" : "linear CPU upload + GPU conversion")
                       << " (" << describe_surface_layout(surface) << ")";
+      log_import_modifier_support(display, surface);
       previous_path = path;
       samples = 0;
       total_us = max_us = 0;

@@ -1,6 +1,7 @@
 #include "../tests_common.h"
 #include "src/physical_display_baseline.h"
 #include "src/repeated_failure_log.h"
+#include "src/platform/linux/dmabuf_modifier_query.h"
 
 using nlohmann::json;
 
@@ -42,4 +43,42 @@ TEST(RepeatedFailure, FirstChangedPeriodicAndRecoveryRemainVisible) {
   EXPECT_EQ(log.recover(), 1);
   EXPECT_FALSE(log.recover());
   EXPECT_EQ(log.failure(1, start + std::chrono::minutes {19}), 0);
+}
+
+TEST(DmabufModifierQuery, DistinguishesExternalOnlyFromTwoDimensionalAndAbsent) {
+  const auto query = [](int capacity, std::uint64_t *modifiers, unsigned int *external, int *count) {
+    *count = 2;
+    if (capacity) {
+      modifiers[0] = 0;
+      modifiers[1] = 7;
+      external[0] = 1;
+      external[1] = 0;
+    }
+    return true;
+  };
+  EXPECT_EQ((egl::query_modifier_support<std::uint64_t, unsigned int>(0, query)), egl::modifier_support_e::external_only);
+  EXPECT_EQ((egl::query_modifier_support<std::uint64_t, unsigned int>(7, query)), egl::modifier_support_e::texture_2d);
+  EXPECT_EQ((egl::query_modifier_support<std::uint64_t, unsigned int>(9, query)), egl::modifier_support_e::absent);
+}
+
+TEST(DmabufModifierQuery, RejectsUnboundedAndChangingDriverCounts) {
+  for (const int initial : {-1, 0, 4097}) {
+    int calls = 0;
+    const auto query = [&](int, std::uint64_t *, unsigned int *, int *count) {
+      ++calls;
+      *count = initial;
+      return true;
+    };
+    EXPECT_EQ((egl::query_modifier_support<std::uint64_t, unsigned int>(0, query)), egl::modifier_support_e::unknown);
+    EXPECT_EQ(calls, 1);
+  }
+  for (const int returned : {-1, 2}) {
+    const auto query = [&](int capacity, std::uint64_t *, unsigned int *, int *count) {
+      *count = capacity ? returned : 1;
+      return true;
+    };
+    EXPECT_EQ((egl::query_modifier_support<std::uint64_t, unsigned int>(0, query)), egl::modifier_support_e::unknown);
+  }
+  const auto failed = [](int, std::uint64_t *, unsigned int *, int *) { return false; };
+  EXPECT_EQ((egl::query_modifier_support<std::uint64_t, unsigned int>(0, failed)), egl::modifier_support_e::unknown);
 }

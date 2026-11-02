@@ -2555,18 +2555,6 @@ namespace rtsp_stream {
       config.monitor.bitrate = (int) configuredBitrateKbps;
     }
 
-    BOOST_LOG(info) << "Negotiated stream: codec="
-                    << (pyrowave_session ? "PyroWave" : config.monitor.videoFormat == 0 ? "H.264" : config.monitor.videoFormat == 1 ? "HEVC" : config.monitor.videoFormat == 2 ? "AV1" : "unknown")
-                    << " resolution=" << config.monitor.width << 'x' << config.monitor.height
-                    << " capture_fps=" << config.monitor.framerate
-                    << " encode_fps=" << config.monitor.encodingFramerate
-                    << " client_wire_kbps=" << requestedWireBitrateKbps
-                    << " host_max_kbps=" << config::video.max_bitrate
-                    << " encoder_target_kbps=" << config.monitor.bitrate
-                    << " fec_percent=" << config::stream.fec_percentage
-                    << " hdr_requested=" << config.monitor.dynamicRange
-                    << "; encoder target accounts for host cap, audio/control and FEC reservations; actual throughput is measured separately";
-
     if (config.monitor.videoFormat == 1 && video::active_hevc_mode == 1) {
       BOOST_LOG(warning) << "HEVC is disabled, yet the client requested HEVC"sv;
 
@@ -2617,6 +2605,18 @@ namespace rtsp_stream {
       respond(socket->sock, *session, &option, 409, "Conflict", req->sequenceNumber, {});
       return false;
     }
+
+    BOOST_LOG(info) << "Negotiated stream: codec="
+                    << (pyrowave_session ? "PyroWave" : config.monitor.videoFormat == 0 ? "H.264" : config.monitor.videoFormat == 1 ? "HEVC" : config.monitor.videoFormat == 2 ? "AV1" : "unknown")
+                    << " resolution=" << config.monitor.width << 'x' << config.monitor.height
+                    << " capture_fps=" << config.monitor.framerate
+                    << " encode_fps=" << config.monitor.encodingFramerate
+                    << " client_wire_kbps=" << requestedWireBitrateKbps
+                    << " host_max_kbps=" << config::video.max_bitrate
+                    << " encoder_target_kbps=" << config.monitor.bitrate
+                    << " fec_percent=" << config::stream.fec_percentage
+                    << " hdr_requested=" << config.monitor.dynamicRange
+                    << "; encoder target accounts for host cap, audio/control and FEC reservations; actual throughput is measured separately";
 
     // Keep response handles alive if constructing or queuing the startup task
     // consumes the lambda captures and then throws.
