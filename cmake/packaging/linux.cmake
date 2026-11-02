@@ -98,6 +98,16 @@ else()
 
     if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         include("${CMAKE_CURRENT_LIST_DIR}/linux_desktop_tray.cmake")
+        if(EXISTS "/etc/arch-release")
+            # Independent of tray availability: the beta updater is a terminal tool.
+            install(PROGRAMS "${CMAKE_SOURCE_DIR}/packaging/linux/vibebeam-update.py"
+                    DESTINATION "${CMAKE_INSTALL_BINDIR}" RENAME "vibebeam-update")
+            file(WRITE "${CMAKE_CURRENT_BINARY_DIR}/beta-build.json"
+                    "{\"source_commit\":\"${GITHUB_COMMIT}\",\"workflow_run_id\":\"$ENV{GITHUB_RUN_ID}\"}\n")
+            install(FILES "${CMAKE_CURRENT_BINARY_DIR}/beta-build.json"
+                    DESTINATION "${CMAKE_INSTALL_DATAROOTDIR}/vibebeam")
+        endif()
+
         # The incoming installer extracts this compatibility step before old
         # ALPM hooks run; it cannot depend on an already installed new helper.
         install(FILES "${CMAKE_SOURCE_DIR}/scripts/linux/migrations/upgrade-2.0-lifecycle.sh"

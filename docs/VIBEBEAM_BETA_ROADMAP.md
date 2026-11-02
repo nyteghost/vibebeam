@@ -184,3 +184,19 @@ any automatic quality transaction.
 - A focused in-session toolbar for quality, screenshots, displays and disconnect.
 
 These are future work, not implemented by the Connection Doctor increment.
+
+
+## November 2 — manual beta updater and build identity
+
+Implemented on beta, awaiting the linked hosted package and physical install checks:
+
+- `vibebeam-update` / `--check`: credential-free public beta release selection,
+  bounded HTTPS downloads, source/package/hash checks and explicit installation.
+- Matching rollback package required; private state/rollback snapshot before pacman.
+- Preserve incoming packages in a private cache for subsequent rollback lookup.
+- Beta Arch publication waits for component/package and web/browser gates, publishes
+  source/provenance/bootstrap assets as a prerelease, and preserves stable latest.
+- Chronological beta package suffixes; installed source/run identity packaged.
+- Modern host version labels display `Beta · SHORTCOMMIT`; raw API version preserved.
+- Remaining: authenticated active-session preflight, physical CachyOS update/rollback
+  and streaming verification, and independent release signing. No automatic updates.

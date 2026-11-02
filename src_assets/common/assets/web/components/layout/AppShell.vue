@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { buildIdentity } from '@/utils/buildIdentity';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
@@ -248,7 +249,7 @@ onBeforeUnmount(() => {
           <UiIcon :name="statusIcon" :size="18" />
           <span class="sidebar__label">
             <strong>{{ statusText }}</strong>
-            <small>{{ system.metadata?.version || t('ui.shell.host_status') }}</small>
+            <small>{{ buildIdentity(system.metadata, t('ui.shell.host_status')) }}</small>
           </span>
           <UiIcon name="refresh" :size="14" class="host-health__refresh sidebar__label" />
         </button>
@@ -314,7 +315,7 @@ onBeforeUnmount(() => {
           <span>{{ t('ui.shell.host_console') }}:</span>
           <strong>{{ statusText }}</strong>
           <span v-if="system.metadata?.version" class="workspace-status__version">
-            {{ system.metadata.version }}
+            {{ buildIdentity(system.metadata) }}
           </span>
         </div>
         <div class="workspace-status__actions">

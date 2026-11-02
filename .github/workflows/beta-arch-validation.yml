@@ -8,7 +8,7 @@ on:
 
 concurrency:
   group: beta-arch-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 jobs:
   arch-beta:
@@ -23,3 +23,63 @@ jobs:
       release_version: 2.0.1-beta-host-download
       cache_namespace: beta-host-download-v1
       artifact_retention_days: 1
+
+  update-contract:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238
+        with:
+          node-version: '24'
+      - run: python3 -m unittest discover -s tests/update -v
+      - run: npm ci --no-audit --no-fund
+        working-directory: src_assets/common/assets/web-legacy
+      - run: npm ci --no-audit --no-fund
+        working-directory: src_assets/common/assets/web
+      - run: npm run test:unit && npm run build
+        working-directory: src_assets/common/assets/web
+      - run: npx playwright install --with-deps chromium
+        working-directory: src_assets/common/assets/web
+      - run: npm run test:e2e -- e2e/dashboard-recovery.spec.ts e2e/connection-doctor.spec.ts
+        working-directory: src_assets/common/assets/web
+
+  publish-beta:
+    needs: [arch-beta, update-contract]
+    if: github.ref == 'refs/heads/beta/host-download-20261028'
+    permissions:
+      contents: write
+      actions: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      SOURCE_SHA: ${{ github.sha }}
+      RUN_ID: ${{ github.run_id }}
+      ATTEMPT: ${{ github.run_attempt }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+      - name: Publish tested beta without changing the stable latest release
+        shell: bash
+        run: |
+          set -euo pipefail
+          head=$(gh api "repos/$REPO/git/ref/heads/beta/host-download-20261028" --jq .object.sha)
+          if [[ "$head" != "$SOURCE_SHA" ]]; then
+            echo 'Superseded beta; skipping publication.'
+            exit 0
+          fi
+          gh run download "$RUN_ID" --repo "$REPO" --name build-Archlinux --dir release
+          python3 .github/scripts/prepare_host_beta.py release "$SOURCE_SHA" "$RUN_ID" "$ATTEMPT"
+          tag="host-beta-$RUN_ID-$ATTEMPT"
+          printf 'Vibebeam host beta at commit %s.\n\nValidated Arch package, component tests, web unit/build and dashboard recovery/diagnostics tests. Physical KDE Wayland/NVENC streaming still requires testing.\n\nExisting updater: `vibebeam-update`. First installation: see docs/BETA_CACHYOS_TESTING.md on the beta branch.\n\nManual updates only. Close streaming clients before installing. Stable latest release is unchanged.\n' "$SOURCE_SHA" > release-notes.md
+          gh release create "$tag" --repo "$REPO" --target "$SOURCE_SHA" \
+            --title "Vibebeam beta ${SOURCE_SHA:0:8}" --draft --prerelease --latest=false \
+            --notes-file release-notes.md release/*.pkg.tar.zst \
+            release/matching-host-source.tar.gz release/vibepollo.pkg.tar.gz \
+            release/linux-provenance.json release/vibebeam-beta.json \
+            release/vibebeam-update.py release/SHA256SUMS
+          # Publish only after the entire reviewed asset set exists.
+          gh release edit "$tag" --repo "$REPO" --draft=false --prerelease --latest=false

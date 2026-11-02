@@ -13,6 +13,17 @@ A scheduled workflow keeps a branch named `upstream-main` identical to Nonary's 
 - **Hardened Linux service:** the host runs as its own user with a locked-down systemd unit, and the few things that need the desktop go through a small root broker with a fixed list of actions.
 - **Checksummed releases:** every release includes `SHA256SUMS`, and the Linux installer and update checks use this repository.
 
+## Beta updates on CachyOS
+
+The beta branch adds a manual terminal updater: `vibebeam-update --check` checks
+for a tested host beta, and `vibebeam-update` downloads/verifies it and guides the
+installation. It requires a matching rollback package, saves a private state
+backup, and asks you to disconnect clients before installation/restart. Older
+packages need the one-time bootstrap described in the
+[CachyOS beta guide](docs/BETA_CACHYOS_TESTING.md#single-command-manual-beta-updates-archcachyos-x86_64).
+This path stays on beta; physical streaming validation remains required.
+Beta dashboard version labels show the running build's short commit.
+
 ## Install on Linux
 
 ```bash

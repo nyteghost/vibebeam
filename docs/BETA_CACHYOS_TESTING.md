@@ -106,3 +106,84 @@ This is a baseline, not certification of subsequent commits or CachyOS runtime.
 The UI unit suite and production web build must also pass on each changed head;
 the dedicated Beta web validation workflow covers these plus dashboard browser
 checks. Hosted tests never install onto the production streaming machine.
+
+## Single-command manual beta updates (Arch/CachyOS x86_64)
+
+New beta packages include an ordinary-user terminal command, compatible with Fish:
+
+```fish
+vibebeam-update --check
+vibebeam-update
+```
+
+`--check` only reads public release metadata and local build identity. It does
+not request sudo, install packages, or change services. Updates are manual;
+there is no timer, background polling, or automatic reboot.
+
+The updater selects only `host-beta-RUN-ATTEMPT` GitHub prereleases produced by
+the beta publication job. It verifies the exact source commit, repository,
+branch, architecture, canonical asset URL, size and SHA-256, then inspects the
+Arch package name/version before invoking pacman. Release checksums are fetched
+over verified HTTPS from this repository; they are not independent package signatures.
+The publication job waits for the Arch package/component tests and the web
+unit/build/recovery/diagnostics tests. It leaves the stable latest release unchanged.
+
+Before installation, close every streaming client and type `UPDATE` at the
+prompt. The updater does **not** have authenticated live session detection yet;
+the confirmation records your explicit disconnect and restart decision. Pacman
+also asks for its normal confirmation. Installing native packages executes their
+normal service/DKMS hooks, and the updater restarts `vibepollo.service` after a
+successful install. It does not restart the display manager, unload modules, or reboot.
+An active systemd service does not prove capture or streaming is healthy.
+
+A package matching `pacman -Q vibebeam` must be available for rollback. The
+updater searches `/var/cache/pacman/pkg` and its private
+`~/.cache/vibebeam-updates` cache. If your verified rollback archive lives elsewhere:
+
+```fish
+vibebeam-update --rollback /absolute/path/to/your-old-vibebeam.pkg.tar.zst
+```
+
+Before pacman runs, a sudo-controlled snapshot is created under
+`/var/lib/vibepollo-package-backups/update-*/`, with private directory/file
+permissions. It contains `state.tar.gz` (existing `/etc/vibepollo` and
+`/var/lib/vibepollo`), `rollback.pkg.tar.zst`, and `installed.txt`. The backup
+archive is listed to verify readability. Existing manual backups are retained.
+Downloaded incoming packages are retained for later rollback lookup. A backup
+or verification failure stops installation. There is no automatic rollback:
+restoring machine state requires a planned service stop and ownership inspection.
+
+### First update from an older package
+
+Older installations do not contain `vibebeam-update`. On the repository's
+[releases page](https://github.com/nyteghost/vibebeam/releases), choose a
+**Vibebeam beta COMMIT** release with a `host-beta-` tag. Download
+`vibebeam-update.py` and `SHA256SUMS` into a new directory. Check the updater:
+
+```fish
+sha256sum --check --ignore-missing SHA256SUMS
+python3 ./vibebeam-update.py --check
+python3 ./vibebeam-update.py --rollback /absolute/path/to/your-old-vibebeam.pkg.tar.zst
+```
+
+Inspect the checksum result before running Python. After the beta package is
+installed, use `vibebeam-update` from any terminal. GitHub CLI credentials are
+not needed for public release downloads. Source, build recipe, provenance,
+checksums and the bootstrap updater are published alongside the package.
+
+### Build identification
+
+The modern dashboard's sidebar, status panel, Overview and Maintenance version
+labels display `Beta · SHORTCOMMIT` for beta builds. The full commit remains in
+Maintenance and the raw version remains available to update comparison logic.
+Unknown commits are explicitly shown as unavailable, never guessed from a tag.
+This identifies the running host; installing a package alone does not prove that
+the running service has restarted into it.
+
+### Verification boundaries
+
+Automated tests cover download/trust limits, substituted manifests, wrong
+source/package identity, rollback package matching, and generated release assets.
+The hosted build checks package contents and runs web/browser tests. A real
+CachyOS installation, permission prompts, rollback restoration, tray visibility,
+and NVENC/Wayland streaming must still be verified on the physical host.

@@ -87,3 +87,13 @@ test('encoder failures remain visible during an active stream', async ({ page })
   await expect(page.locator('[data-check="sessions"]')).toContainText('1 active stream sessions');
   expect(state.mutations).toEqual([]);
 });
+
+test('beta build labels show the running commit in the shell and maintenance', async ({ page }) => {
+  const state = await host(page);
+  await page.goto('/v2/');
+  await expect(page.locator('.sidebar')).toContainText('Beta · aaaaaaaa');
+  await page.goto('/v2/maintenance');
+  await expect(page.locator('.release-notes')).toContainText('Beta · aaaaaaaa');
+  await expect(page.locator('section[aria-labelledby="installed-version-title"]')).toContainText('Beta · aaaaaaaa');
+  expect(state.mutations).toEqual([]);
+});

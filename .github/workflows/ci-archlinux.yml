@@ -245,6 +245,10 @@ jobs:
             sub_version=".r${COMMIT}"
           fi
 
+          if [[ "$BRANCH" == "beta/host-download-20261028" ]]; then
+            sub_version=".r$(date -u +%Y%m%d%H%M%S).g${COMMIT}"
+          fi
+
           # Configure PKGBUILD file (as root)
           mkdir -p build
           cd build
@@ -492,6 +496,8 @@ jobs:
             echo "::error::The native package unexpectedly contains the legacy per-user host service."
             exit 1
           fi
+          grep -qx 'usr/bin/vibebeam-update' <<< "${package_files}"
+          grep -qx 'usr/share/vibebeam/beta-build.json' <<< "${package_files}"
           grep -qx 'usr/share/applications/io.github.Nonary.vibepollo.desktop' <<< "${package_files}"
           grep -qx 'usr/libexec/vibeshine/vibeshine-drm-install' <<< "${package_files}"
           grep -qx 'usr/src/vibeshine-drm-[^/]*/dkms.conf' <<< "${package_files}"
@@ -512,6 +518,12 @@ jobs:
           cp pkg/vibebeam*.pkg.tar.zst artifacts/
           cp vibepollo.pkg.tar.gz artifacts/
           python3 -c 'import hashlib,json,os,pathlib,subprocess; root=pathlib.Path("artifacts"); packages=list(root.glob("vibebeam-*.pkg.tar.zst")); assert len(packages)==1; sha=subprocess.check_output(["git","-c","safe.directory="+os.environ["GITHUB_WORKSPACE"],"rev-parse","HEAD"],text=True).strip(); assert sha==os.environ["COMMIT"]; data=dict(schema_version=1,source_commit=sha,version=os.environ["BUILD_VERSION"],workflow_run_id=os.environ["GITHUB_RUN_ID"],assets={p.name:hashlib.sha256(p.read_bytes()).hexdigest() for p in packages}); (root/"linux-provenance.json").write_text(json.dumps(data,indent=2)+"\n")'
+
+          if [[ "$BRANCH" == "beta/host-download-20261028" ]]; then
+            # Include tracked source and recursively checked-out dependency source.
+            sudo -u builder git -C pkg/src/vibepollo ls-files --recurse-submodules -z > /tmp/vibebeam-source-files
+            tar -C pkg/src/vibepollo --null -T /tmp/vibebeam-source-files -czf artifacts/matching-host-source.tar.gz
+          fi
 
           # List artifacts
           ls -la artifacts/

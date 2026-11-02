@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { buildIdentity } from '@/utils/buildIdentity';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -544,7 +545,7 @@ onBeforeUnmount(() => {
       <footer class="overview-footer">
         <span
           >{{ t('ui.overview.installedVersion') }}
-          <strong>{{ system.metadata?.version || t('_common.unknown') }}</strong></span
+          <strong>{{ buildIdentity(system.metadata, t('_common.unknown')) }}</strong></span
         >
         <span>Based on Vibepollo by Nonary, built on Apollo and Sunshine</span>
         <nav :aria-label="t('ui.overview.support')">
