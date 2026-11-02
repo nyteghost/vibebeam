@@ -746,7 +746,7 @@ namespace egl {
         BOOST_LOG(warning) << "GL rejected imported RGB DMA-BUF texture (fourcc="
                            << util::hex(xrgb.fourcc).to_string_view() << ", error="
                            << util::hex(import_error).to_string_view()
-                           << ", modifier=" << util::hex(xrgb.modifier).to_string_view() << ").";
+                           << ", modifier=" << util::hex(xrgb.modifier).to_string_view() << "). Source layout: " << describe_surface_layout(xrgb);
       }
       return std::nullopt;
     }
@@ -872,6 +872,35 @@ namespace egl {
       BOOST_LOG(warning) << "Using CPU DMA-BUF upload fallback for cross-device KMS capture.";
     }
     return rgb;
+  }
+
+  std::optional<rgb_t> source_importer_t::import(display_t::pointer display, const surface_descriptor_t &surface) {
+    const auto started = std::chrono::steady_clock::now();
+    auto result = import_source(display, surface);
+    const int path = result ? 0 : 1;
+    if (!result) result = upload_source(display, surface);
+    const auto elapsed_us = std::chrono::duration<double, std::micro>(std::chrono::steady_clock::now() - started).count();
+    if (!result) return std::nullopt;
+    if (path != previous_path) {
+      BOOST_LOG(info) << "Capture transfer path=" << (path == 0 ? "EGL DMA-BUF GPU import" : "linear CPU upload + GPU conversion")
+                      << " (" << describe_surface_layout(surface) << ")";
+      previous_path = path;
+      samples = 0;
+      total_us = max_us = 0;
+    }
+    ++samples;
+    total_us += elapsed_us;
+    max_us = std::max(max_us, elapsed_us);
+    if (samples == 1 || samples == 300) {
+      BOOST_LOG(info) << "Capture transfer CPU submission overhead: samples=" << samples
+                      << " mean_us=" << total_us / samples << " max_us=" << max_us
+                      << "; includes import attempt and fallback upload; excludes asynchronous GPU completion, color conversion, encoding and end-to-end latency";
+      if (samples == 300) {
+        samples = 0;
+        total_us = max_us = 0;
+      }
+    }
+    return result;
   }
 
   /**

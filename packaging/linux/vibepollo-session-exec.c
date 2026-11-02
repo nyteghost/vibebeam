@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "vibepollo-session-protocol.h"
+#include "vibepollo-session-connect-retry.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -15,6 +16,7 @@
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <time.h>
 
 static bool drop_client_capabilities(void) {
   if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0)) return false;
@@ -105,6 +107,11 @@ static int connect_to_broker(void) {
     return -1;
   }
   return socket_fd;
+}
+
+static void broker_connect_backoff(void) {
+  struct timespec delay = {.tv_sec = 0, .tv_nsec = 100000000};
+  while (nanosleep(&delay, &delay) && errno == EINTR) {}
 }
 
 static bool send_request(int socket_fd, int argc, char **argv, uint64_t generation) {
@@ -261,7 +268,8 @@ int main(int argc, char **argv) {
     if (!clipboard_hex) return fail("could not read clipboard text from stdin");
     argv[2] = clipboard_hex;
   }
-  const int socket_fd = connect_to_broker();
+  const int socket_fd = session_connect_with_retry(
+    !strncmp(argv[1], "audio-", 6), connect_to_broker, broker_connect_backoff);
   if (socket_fd < 0) return fail("could not connect to the session broker");
   if (!send_request(socket_fd, argc, argv, generation)) {
     const int saved_errno = errno;

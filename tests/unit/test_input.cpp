@@ -97,3 +97,13 @@ TEST(InputTouchMapping, NormalizesUsingPlatformOffsetContract) {
 #endif
   EXPECT_FLOAT_EQ(coords.second, 0.5f);
 }
+
+TEST(InputValidation, HapticsAnnouncementRequiresExactProtocolLength) {
+  NV_HAPTICS_PACKET packet {};
+  for (const auto length : {sizeof(packet) - 1, sizeof(packet), sizeof(packet) + 1}) {
+    auto bytes = packet_bytes(packet, length);
+    write_u32_be(bytes, 0, length - sizeof(packet.header.size));
+    write_u32_le(bytes, sizeof(packet.header.size), ENABLE_HAPTICS_MAGIC);
+    EXPECT_EQ(static_cast<bool>(input::validation::validate_packet(bytes)), length == sizeof(packet));
+  }
+}

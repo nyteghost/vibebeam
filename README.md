@@ -4,6 +4,17 @@ Vibebeam is the companion host for [Vibelight](https://github.com/nyteghost/vibe
 
 A scheduled workflow keeps a branch named `upstream-main` identical to Nonary's Vibepollo and opens a pull request here when there are new changes.
 
+## November 2 beta reliability investigation
+
+The [log review and hardware test guide](docs/VIBEBEAM_LOG_REVIEW_2026-11-02.md)
+tracks display baseline null handling, immutable prelogin catalog migration,
+strict haptics packet compatibility, bounded audio broker connection recovery,
+codec probe caching, managed Proton policy and capture/bitrate diagnostics.
+CPU capture fallback remains available. GPU zero-copy compatibility, cursor
+fallback and end-to-end latency still require RTX 3080/KDE hardware validation.
+These source changes are beta work; check the exact Actions result before
+installing and keep a matching rollback package. No production update is automatic.
+
 ## What Vibebeam adds
 
 - **Two-factor code to connect (optional).** In the web console, **Require 2FA to connect** shows a QR code to scan with any authenticator app, asks for one code to confirm, and gives you eight one-time backup codes. Vibelight then asks for the six-digit code each time someone starts or resumes a stream. Each code works once, five wrong tries pause that device for five minutes, and a dropped stream can reconnect for about two minutes without asking again. Apps that cannot type a code (such as stock Moonlight on iOS) need **Exempt from 2FA** turned on for that client. Lost your phone and your backup codes? Run `vibepollo --reset-2fa` on the host (as the same user the service runs as) to turn 2FA off, then set it up again. Turn it off normally with a current or backup code.

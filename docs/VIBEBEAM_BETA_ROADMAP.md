@@ -1,8 +1,22 @@
 # Vibebeam beta — reliability and safe host release
 
-Status: **in progress** (October 31, 2026). Scope: the beta branch only.
+Status: **in progress** (November 2, 2026). Scope: the beta branch only.
 Production CachyOS / KDE Wayland must remain on the known-good installed host
 until a verified package, rollback procedure, and smoke test exist.
+
+## November 2 log reliability work
+
+See the [source-correlated investigation and test notes](VIBEBEAM_LOG_REVIEW_2026-11-02.md).
+
+- [x] Defensive physical baseline parser with regression cases; immutable catalog schema fix and actionable atomic-write errors.
+- [x] Fixed-size haptics packet recognition; adapter-owned negative capability expiry; managed-app Proton policy.
+- [x] Bounded audio pre-request connection recovery; preserve generation/authentication and no replay after reset.
+- [x] Capture path/CPU submission measurements, negotiated stream budget diagnostics, UPnP repeat summaries.
+- [ ] Hosted Arch package/CTest for these changes; verify exact artifact and release metadata.
+- [ ] RTX 3080 exporter/EGL modifier investigation and compatible GPU transfer implementation; retain CPU fallback.
+- [ ] Broker-supported cursor image/position fallback with scaling and visibility validation; avoid guessing cursor state.
+- [ ] Physical display/session/audio restoration, disconnect/reconnect, Windows/Shield input and comparable latency/quality measurements.
+- [ ] Revisit fresh-probe AV1 retries after propagating authoritative unsupported-codec failures across native/legacy implementations.
 
 ## Completed source changes (not equivalent to validated releases)
 

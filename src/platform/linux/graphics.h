@@ -6,6 +6,7 @@
 
 // standard includes
 #include <array>
+#include <chrono>
 #include <optional>
 #include <string_view>
 
@@ -254,6 +255,17 @@ namespace egl {
       display_t::pointer egl_display,
       const surface_descriptor_t &xrgb
     );
+
+  // Owned by a converter/context, never shared across capture devices.
+  class source_importer_t {
+  public:
+    std::optional<rgb_t> import(display_t::pointer display, const surface_descriptor_t &surface);
+  private:
+    unsigned int samples = 0;
+    double total_us = 0;
+    double max_us = 0;
+    int previous_path = -1;
+  };
 
   rgb_t create_blank(platf::img_t &img);
 

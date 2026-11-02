@@ -23,6 +23,7 @@ namespace file_handler {
   class filesystem_t {
   public:
     virtual ~filesystem_t() = default;
+    virtual std::string last_error() const { return {}; }
     virtual bool exists(const std::filesystem::path &path) const = 0;
     virtual bool create_directories(const std::filesystem::path &path) = 0;
     virtual std::string read(const std::filesystem::path &path) const = 0;

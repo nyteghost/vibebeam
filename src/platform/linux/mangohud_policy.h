@@ -193,6 +193,13 @@ namespace platf::mangohud {
     return limit_millihz % 1000 == 0 ? std::string(formatted_limit) : std::string {};
   }
 
+  inline launch_policy_t for_application(launch_policy_t policy, std::string_view provider, bool managed_steam_app) {
+    // Proton's renderer environment is handed off to one managed Steam app.
+    // A streamed Desktop must not receive overlay/limiter environment changes.
+    if (proton_provider_selected(provider) && !managed_steam_app) return {};
+    return policy;
+  }
+
   inline launch_policy_t make_launch_policy(
     std::string_view provider,
     bool limiter_enabled,

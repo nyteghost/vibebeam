@@ -288,6 +288,8 @@ namespace input {
 
   std::optional<packet_size_bounds_t> packet_size_bounds(std::uint32_t magic) {
     switch (magic) {
+      case ENABLE_HAPTICS_MAGIC:
+        return packet_size_bounds_t {sizeof(NV_HAPTICS_PACKET), sizeof(NV_HAPTICS_PACKET)};
       case MOUSE_MOVE_REL_MAGIC_GEN5:
         return packet_size_bounds_t {sizeof(NV_REL_MOUSE_MOVE_PACKET), sizeof(NV_REL_MOUSE_MOVE_PACKET)};
       case MOUSE_MOVE_ABS_MAGIC:
@@ -1867,6 +1869,10 @@ namespace input {
 
       // Send the batched input to the OS
       switch (util::endian::little(payload->magic)) {
+        case ENABLE_HAPTICS_MAGIC:
+          // Legacy GFE capability announcement. Sunshine sends feedback through
+          // its existing per-controller channel; this packet injects no input.
+          break;
         case MOUSE_MOVE_REL_MAGIC_GEN5:
           passthrough(input, (PNV_REL_MOUSE_MOVE_PACKET) payload);
           break;
@@ -1983,6 +1989,7 @@ namespace input {
     if ((permission & crypto::PERM::_all_inputs) != crypto::PERM::_all_inputs) {
       // Check permission
       switch (packet->magic) {
+        case ENABLE_HAPTICS_MAGIC:
         case MULTI_CONTROLLER_MAGIC_GEN5:
         case SS_CONTROLLER_ARRIVAL_MAGIC:
         case SS_CONTROLLER_TOUCH_MAGIC:
