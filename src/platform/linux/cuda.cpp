@@ -474,14 +474,8 @@ namespace cuda {
 
         rgb = egl::rgb_t {};
 
-        auto rgb_opt = egl::import_source(display.get(), descriptor.sd);
-
-        if (!rgb_opt) {
-          rgb_opt = egl::upload_source(display.get(), descriptor.sd);
-          if (!rgb_opt) {
-            return -1;
-          }
-        }
+        auto rgb_opt = source_importer.import(display.get(), descriptor.sd);
+        if (!rgb_opt) return -1;
 
         rgb = std::move(*rgb_opt);
       }
@@ -545,6 +539,7 @@ namespace cuda {
 
     std::uint64_t sequence;
     egl::rgb_t rgb;
+    egl::source_importer_t source_importer;
 
     registered_resource_t y_res;
     registered_resource_t uv_res;
@@ -745,13 +740,8 @@ namespace cuda {
         sequence = descriptor.sequence;
         rgb = {};
 
-        auto imported = egl::import_source(display.get(), descriptor.sd);
-        if (!imported) {
-          imported = egl::upload_source(display.get(), descriptor.sd);
-          if (!imported) {
-            return -1;
-          }
-        }
+        auto imported = source_importer.import(display.get(), descriptor.sd);
+        if (!imported) return -1;
         rgb = std::move(*imported);
       }
 
@@ -826,6 +816,7 @@ namespace cuda {
     egl::sws_t sws;
     egl::nv12_t nv12;
     egl::rgb_t rgb;
+    egl::source_importer_t source_importer;
     registered_resource_t y_res;
     registered_resource_t uv_res;
 

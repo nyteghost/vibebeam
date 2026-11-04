@@ -1,0 +1,265 @@
+# CachyOS beta testing and recovery
+
+Keep development on `beta/host-download-20261028`. A passing hosted build
+validates that source and its tests, not a live KDE Wayland/NVENC session.
+Do not promote to main until the runtime checks below have passed.
+
+## Establish what is installed
+
+Run these read-only commands in a regular Fish terminal:
+
+```fish
+pacman -Q vibebeam
+uname -r
+dkms status
+systemctl --no-pager status vibepollo-session-controller.service vibepollo.service
+```
+
+The package version determines installed code. A downloaded archive does not.
+A reachable web UI may still be served by an older running process until a
+planned restart. Record both the installed version and the UI-reported runtime
+version before testing. Do not infer a running upgrade from package output.
+
+The tested rollback baseline for this beta series is **2.0.1-7**. Keep its
+verified package and a configuration/state backup outside the beta download
+folder. Before any future upgrade, verify the backup is readable and inspect
+the rollback package using `pacman -Qip /absolute/path/to/package.pkg.tar.zst`.
+Keep backups private: they can include certificates and pairing state.
+
+Do not blindly extract a state backup over a running host. Rollback needs a
+planned disconnect, known package ownership, stopped affected services, exact
+archive layout/ownership inspection and restoration, then runtime verification.
+Do not reboot or unload display modules merely to diagnose a tray problem.
+
+## New interface and tray
+
+Open `https://127.0.0.1:47990/v2/` for the new dashboard. `/settings` is the
+classic UI. Its banner also links to the new interface.
+
+The machine service intentionally disables its embedded tray. KDE uses a
+separate **Vibebeam Tray** companion (older beta builds display **Vibepollo Tray**):
+
+```fish
+/usr/bin/vibepollo-tray
+```
+
+Run it as your ordinary desktop user without sudo. Installing the autostart
+entry during an existing login does not itself launch it. It is packaged at
+`/etc/xdg/autostart/vibepollo-tray.desktop` and is also available in the app menu.
+Check KDE's hidden-icons list. Launching the helper does not restart streaming.
+If no icon appears, capture its terminal error and check these read-only probes:
+
+```fish
+command -v vibepollo-tray
+pacman -Q pyside6
+pgrep -af '[v]ibepollo-tray'
+```
+
+Do not start a second streaming host to obtain a tray icon. The companion uses
+a singleton lock. Newer beta builds open `/v2/` directly from its Open action. Its API connection is separate from host pairing; never paste
+API tokens, private keys, state archives or full configuration into test reports.
+
+## Connection Doctor
+
+New beta builds include `https://127.0.0.1:47990/v2/doctor`. Run checks from the
+new dashboard or navigation. It reads host metadata and session state without
+starting capture or encoder probes, changing settings or stopping services.
+
+Check that configured KMS capture is distinguished from observed capture,
+unknown network/client compatibility is visible, and failed refreshes remove
+older positive findings. The version shown is the running host version, not a
+package database check. Use a local terminal to verify the installed package.
+
+Preview the support summary before explicitly copying it. It contains static
+check outcomes and supported running-version identifiers, not raw logs, tokens,
+paths, addresses or client/app names. Nothing is uploaded by this feature.
+
+## Controlled smoke test
+
+Use local physical access and a short test session, with the rollback package
+and backup available. Record pass/fail and exact client/host commit versions.
+
+- Verify physical monitors and the existing desktop before connecting.
+- Pair/connect with the existing client; verify video, audio, keyboard and mouse.
+- Check NVENC availability and normal quality on the RTX 3080.
+- Open the new dashboard at desktop and narrow widths; keyboard focus remains visible.
+- Switch Smart Local to Off, reload, and verify Off persists in this browser.
+  Local AI remains unavailable. Newer beta builds measure host-output FPS per
+  selected active session after a continuous observation window. Client FPS,
+  latency and packet loss remain unknown. Apply/Undo is unavailable. Switch Off
+  or hide the page to stop sampling; verify reconnects start a fresh window.
+- Test a brief client-side network interruption, recovery and explicit disconnect.
+  Do not power-cycle the production host as an outage simulation.
+- Verify virtual displays owned by the session disappear and physical outputs remain.
+- Verify the host can accept a new session and the local desktop remains usable.
+- Check top-center and bottom-right bitrate notifications on the client.
+
+Stop testing on loss of physical output, capture errors, pairing loss, failed
+cleanup or unexpected settings changes. Preserve redacted logs and use the
+prepared rollback procedure rather than repeated installs or forced restarts.
+
+## Validation record, October 31, 2026
+
+At the start of this continuation the exact host head `44ad2139e3f8` passed
+[Arch validation](https://github.com/nyteghost/vibebeam/actions/runs/41212066022).
+This is a baseline, not certification of subsequent commits or CachyOS runtime.
+The UI unit suite and production web build must also pass on each changed head;
+the dedicated Beta web validation workflow covers these plus dashboard browser
+checks. Hosted tests never install onto the production streaming machine.
+
+## Single-command manual beta updates (Arch/CachyOS x86_64)
+
+New beta packages include an ordinary-user terminal command, compatible with Fish:
+
+```fish
+vibebeam-update --check
+vibebeam-update
+```
+
+`--check` only reads public release metadata and local build identity. It does
+not request sudo, install packages, or change services. Updates are manual;
+there is no timer, background polling, or automatic reboot.
+
+The updater selects only `host-beta-RUN-ATTEMPT` GitHub prereleases produced by
+the beta publication job. It verifies the exact source commit, repository,
+branch, architecture, canonical asset URL, size and SHA-256, then inspects the
+Arch package name/version before invoking pacman. Release checksums are fetched
+over verified HTTPS from this repository; they are not independent package signatures.
+The publication job waits for the Arch package/component tests and the web
+unit/build/recovery/diagnostics tests. It leaves the stable latest release unchanged.
+
+Before installation, close every streaming client and type `UPDATE` at the
+prompt. The updater does **not** have authenticated live session detection yet;
+the confirmation records your explicit disconnect and restart decision. Pacman
+also asks for its normal confirmation. Installing native packages executes their
+normal service/DKMS hooks, and the updater restarts `vibepollo.service` after a
+successful install. It does not restart the display manager, unload modules, or reboot.
+An active systemd service does not prove capture or streaming is healthy.
+
+A package matching `pacman -Q vibebeam` must be available for rollback. The
+updater searches `/var/cache/pacman/pkg` and its private
+`~/.cache/vibebeam-updates` cache, plus the earlier
+`~/Downloads/Vibebeam-Beta*` download folders. If your verified rollback archive lives elsewhere:
+
+```fish
+vibebeam-update --rollback /absolute/path/to/your-old-vibebeam.pkg.tar.zst
+```
+
+Before pacman runs, a sudo-controlled snapshot is created under
+`/var/lib/vibepollo-package-backups/update-*/`, with private directory/file
+permissions. It contains `state.tar.gz` (existing `/etc/vibepollo` and
+`/var/lib/vibepollo`), `rollback.pkg.tar.zst`, and `installed.txt`. The backup
+archive is listed to verify readability. Existing manual backups are retained.
+Downloaded incoming packages are retained for later rollback lookup. A backup
+or verification failure stops installation. There is no automatic rollback:
+restoring machine state requires a planned service stop and ownership inspection.
+
+### First update from an older package
+
+Older installations do not contain `vibebeam-update`. On the repository's
+[releases page](https://github.com/nyteghost/vibebeam/releases), choose a
+**Vibebeam beta COMMIT** release with a `host-beta-` tag. Download
+`vibebeam-update.py` and `SHA256SUMS` into a new directory. Check the updater:
+
+```fish
+sha256sum --check --ignore-missing SHA256SUMS
+python3 ./vibebeam-update.py --check
+python3 ./vibebeam-update.py --rollback /absolute/path/to/your-old-vibebeam.pkg.tar.zst
+```
+
+Inspect the checksum result before running Python. After the beta package is
+installed, use `vibebeam-update` from any terminal. GitHub CLI credentials are
+not needed for public release downloads. Source, build recipe, provenance,
+checksums and the bootstrap updater are published alongside the package.
+
+### Build identification
+
+The modern dashboard's sidebar, status panel, Overview and Maintenance version
+labels display `Beta · SHORTCOMMIT` for beta builds. The full commit remains in
+Maintenance and the raw version remains available to update comparison logic.
+Unknown commits are explicitly shown as unavailable, never guessed from a tag.
+This identifies the running host; installing a package alone does not prove that
+the running service has restarted into it.
+
+### Verification boundaries
+
+Automated tests cover download/trust limits, substituted manifests, wrong
+source/package identity, rollback package matching, and generated release assets.
+The hosted build checks package contents and runs web/browser tests. A real
+CachyOS installation, permission prompts, rollback restoration, tray visibility,
+and NVENC/Wayland streaming must still be verified on the physical host.
+
+## Update button and Main/Beta selector
+
+On the gaming PC, open **Maintenance → Host updates** at
+`https://127.0.0.1:47990/v2/maintenance`. Select **Beta** or **Main**, press
+**Check for update**, review the available commit, then press **Update → Open
+installer**. The browser may ask to open **Vibebeam Update**. The native update
+window then downloads/verifies the selected channel and handles backup,
+password approval, pacman confirmation, and restart. It rechecks availability;
+a newer verified build may appear between the browser check and installation.
+The desktop window stays open until you press Enter, so failures remain readable.
+This is a manual button-triggered update, not unattended background installation.
+
+The choice persists in that browser when storage is available. A channel change
+clears the previous candidate. No channel falls back to the other. The host
+refreshes authenticated session state immediately before handoff and refuses it
+if a stream/application is active, or the session state cannot be confirmed.
+The native installer retains its explicit disconnect/approval prompt because a
+protocol URI can be launched from other applications too.
+
+Main means production (`master` in this repository today; the manifest also
+supports `main` after a branch rename). Only non-prerelease
+`host-main-RUN-ATTEMPT` packages with a matching Main manifest are accepted.
+There is no verified Main package in this new format yet. Until one is explicitly
+approved and published, the Main check reports that it is unavailable and leaves
+Update disabled. Existing `v2.0.1-beta.*` releases are not Main candidates.
+No main/production branch changes or promotion are part of this beta work.
+
+The browser reads a bounded copy of the manifest embedded in the release API
+body, avoiding cross-origin downloads from GitHub's release-asset host. The
+native installer independently downloads and validates the full manifest, package
+identity, size, checksum and rollback preflight. The desktop handler accepts only
+`vibebeam-update://beta` or `vibebeam-update://main`, with an optional trailing
+slash. URLs cannot supply package paths, shell commands, credentials, or arbitrary
+hosts. Native commands are executed as argument arrays, never through a shell.
+
+Installation handoff is enabled only from a loopback browser on an x86_64 Linux
+host. Browsers using a remote LAN address can check availability but cannot launch
+the local desktop handler. Use the loopback page on the actual gaming PC. The Arch package installs the URI handler and its
+desktop database dependencies. The first package with this handler still needs
+the earlier terminal bootstrap; subsequent updates can start from the button.
+If no installer opens, confirm that the new package is installed, allow the
+browser's external-application prompt, or run `vibebeam-update --channel beta`
+(or `--channel main`) in a terminal.
+
+Unit/browser tests cover channel separation, metadata substitution, literal URI
+parsing, local-host restrictions, persisted choice, cancellation, and a session
+that becomes active after checking. Real KDE/Chrome URI registration, terminal
+selection, sudo prompts and package installation remain physical CachyOS tests.
+
+### Missing release after a successful build
+
+Earlier beta runs could finish successfully while the superseded-head rule skipped
+publication. A successful Actions run alone therefore did not prove that a
+`host-beta-*` release existed, and bootstrap could stop with `release not found`.
+If that happened, `vibebeam-update` was not installed; do not add a shell alias or
+retry the missing command. The corrected publisher creates a unique prerelease
+for every passing build. Clients choose the newest run identity, so an older
+build finishing later cannot replace a newer available update.
+
+The recovery workflow republishes original artifacts from runs 41437547290 and
+41446338471 after validating the original repository/branch/source and both the
+Arch and update-contract gates. It does not rebuild, promote to Main, overwrite a
+public release, or install anything on a host. Bootstrap instructions should use
+only an existing public release with the expected updater/checksum assets.
+
+
+The current verified bootstrap release is
+[host-beta-41446338471-1](https://github.com/nyteghost/vibebeam/releases/tag/host-beta-41446338471-1)
+(commit `66344bf`, including Main/Beta controls). Its updater SHA-256 is
+`c99f47acf963f0d7bc0d294bfec1758ab105687fad249a8a708888bd70bd840c`.
+The older `host-beta-41437547290-1` publication was rejected with HTTP 403 by
+GitHub's integration token. Recovery uses the existing `GH_TOKEN` release secret
+when configured, otherwise the job token; no secret value is read or exported.
+The newer public release remains usable regardless of historical recovery.

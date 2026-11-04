@@ -94,3 +94,12 @@ TEST(EncoderProbePolicy, CapabilitiesRemainAssociatedWithObservedKey) {
   EXPECT_TRUE(cached.second.hdr);
   EXPECT_FALSE(cache_key_matches(key("luid=amd"), cached.first));
 }
+
+TEST(EncoderProbePolicy, NegativeCodecObservationExpiresAndRejectsClockReversal) {
+  const auto start = std::chrono::steady_clock::time_point {};
+  using video::encoder_probe_policy::negative_result_reusable;
+  EXPECT_TRUE(negative_result_reusable(start, start));
+  EXPECT_TRUE(negative_result_reusable(start, start + std::chrono::minutes {4}));
+  EXPECT_FALSE(negative_result_reusable(start, start + std::chrono::minutes {5}));
+  EXPECT_FALSE(negative_result_reusable(start, start - std::chrono::seconds {1}));
+}

@@ -129,6 +129,7 @@ program = r'''
 #include <string>
 #include <thread>
 #include <vector>
+#include "tests/support/native_mutation_test_stub.h"
 
 using namespace std::chrono_literals;
 struct NullLog { template<class T> NullLog &operator<<(const T &) { return *this; } };

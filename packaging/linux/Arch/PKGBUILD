@@ -30,6 +30,8 @@ fi
 depends=(
   'avahi'
   'curl'
+  'desktop-file-utils'
+  'xdg-utils'
   'dkms'
   'iproute2'
   'jq'

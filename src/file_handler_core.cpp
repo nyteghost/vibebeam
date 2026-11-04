@@ -39,14 +39,15 @@ namespace file_handler {
   int handler_t::write_file(const std::filesystem::path &path, std::string_view contents) {
     const auto parent = path.parent_path();
     if (!parent.empty() && !_filesystem.exists(parent) && !_filesystem.create_directories(parent)) {
-      report("failed to create parent directory");
+      report("failed to create parent directory: target=" + path.string() + "; " + _filesystem.last_error());
       return -1;
     }
 
     const auto temporary = _filesystem.temporary_path(path);
     if (!_filesystem.write(temporary, contents)) {
+      const auto error = _filesystem.last_error();
       _filesystem.remove(temporary);
-      report("failed to write temporary file");
+      report("failed to write temporary file: target=" + path.string() + "; temporary=" + temporary.string() + "; " + error);
       return -1;
     }
 
@@ -61,8 +62,9 @@ namespace file_handler {
     }
 
     if (result != replace_result_e::success) {
+      const auto error = _filesystem.last_error();
       _filesystem.remove(temporary);
-      report("failed to replace target file");
+      report("failed to replace target file: target=" + path.string() + "; " + error);
       return -1;
     }
     return 0;

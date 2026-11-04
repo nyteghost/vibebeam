@@ -1,5 +1,5 @@
 #!/usr/bin/python3
-"""Unprivileged desktop companion for Vibepollo's native machine service.
+"""Unprivileged desktop companion for Vibebeam's native machine service.
 
 Adapted from funkyotc's Nonary/Vibepollo PR601, commit
 38525645ef25482a66fc010cea26fd67996b8aa8 (GPL-3.0-only).
@@ -147,7 +147,7 @@ def select_releases(data):
 
 def check_updates():
     request = urllib.request.Request(RELEASES_API, headers={
-        "Accept": "application/vnd.github+json", "User-Agent": "Vibepollo-Desktop-Tray",
+        "Accept": "application/vnd.github+json", "User-Agent": "Vibebeam-Desktop-Tray",
     })
     # Public metadata uses the system CA store and carries no local API token.
     with urllib.request.urlopen(request, timeout=10) as response:
@@ -357,11 +357,11 @@ def main(argv=None):
                                       QFormLayout, QLabel, QLineEdit, QMenu,
                                       QMessageBox, QSystemTrayIcon)
     except ImportError:
-        print("Vibepollo tray requires PySide6 (QtWidgets).", file=sys.stderr)
+        print("Vibebeam tray requires PySide6 (QtWidgets).", file=sys.stderr)
         return 1
 
     app = QApplication([sys.argv[0]])
-    app.setApplicationName("Vibepollo Tray")
+    app.setApplicationName("Vibebeam Tray")
     app.setQuitOnLastWindowClosed(False)
     # QLockFile handles stale owners and concurrent desktop/manual launches.
     runtime = QStandardPaths.writableLocation(QStandardPaths.StandardLocation.RuntimeLocation)
@@ -375,7 +375,7 @@ def main(argv=None):
     try:
         settings = store.load()
     except OSError as error:
-        QMessageBox.warning(None, "Vibepollo", "Could not read private tray settings: " + str(error))
+        QMessageBox.warning(None, "Vibebeam", "Could not read private tray settings: " + str(error))
         settings = {}
 
     class Results(QObject):
@@ -384,22 +384,22 @@ def main(argv=None):
     signals = Results()
     tray = QSystemTrayIcon()
     menu = QMenu()
-    status = QAction("Vibepollo: checking…", menu)
+    status = QAction("Vibebeam: checking…", menu)
     status.setEnabled(False)
     menu.addAction(status)
     base_url = f"https://127.0.0.1:{args.port}"
 
-    def open_ui(path="/"):
+    def open_ui(path="/v2/"):
         QDesktopServices.openUrl(QUrl(base_url + path))
 
-    menu.addAction("Open Vibepollo", lambda: open_ui())
+    menu.addAction("Open Vibebeam", lambda: open_ui())
     menu.addAction("Pair a client", lambda: open_ui("/v2/pair"))
     menu.addSeparator()
     close_action = menu.addAction("No application running")
     updates_action = menu.addAction("Check for Update")
-    start_action = menu.addAction("Start Vibepollo")
+    start_action = menu.addAction("Start Vibebeam")
     restart_action = menu.addAction("Restart")
-    stop_action = menu.addAction("Quit Vibepollo")
+    stop_action = menu.addAction("Quit Vibebeam")
     menu.addSeparator()
     connect_action = menu.addAction("Connect API token…")
     forget_action = menu.addAction("Forget API token")
@@ -428,8 +428,8 @@ def main(argv=None):
         painter.drawEllipse(39, 39, 23, 23)
         painter.end()
         tray.setIcon(QIcon(pixmap))
-        tray.setToolTip(f"Vibepollo: {label}" + ("\n" + detail if detail else ""))
-        status.setText(f"Vibepollo: {label}")
+        tray.setToolTip(f"Vibebeam: {label}" + ("\n" + detail if detail else ""))
+        status.setText(f"Vibebeam: {label}")
 
     def poll():
         snapshot = dict(settings)
@@ -440,7 +440,7 @@ def main(argv=None):
             return
         if action in ("restart", "stop"):
             verb = "Restart" if action == "restart" else "Quit"
-            if QMessageBox.question(None, f"{verb} Vibepollo?",
+            if QMessageBox.question(None, f"{verb} Vibebeam?",
                                     "This ends active streams and the running application.") != QMessageBox.StandardButton.Yes:
                 return
         start_action.setEnabled(False)
@@ -475,20 +475,20 @@ def main(argv=None):
         try:
             store.save(settings)
         except OSError as error:
-            QMessageBox.warning(None, "Vibepollo", "Could not remove the saved token: " + str(error))
+            QMessageBox.warning(None, "Vibebeam", "Could not remove the saved token: " + str(error))
         # Polls already in flight belong to the old token generation.
         QTimer.singleShot(0, poll)
 
     def token_dialog(fingerprint):
         if settings.get("fingerprint") != fingerprint:
             formatted = ":".join(fingerprint[i:i + 2] for i in range(0, len(fingerprint), 2))
-            if QMessageBox.question(None, "Trust local Vibepollo certificate?",
+            if QMessageBox.question(None, "Trust local Vibebeam certificate?",
                                     "Verify this SHA-256 fingerprint against the certificate in your local Web UI before connecting:\n\n" + formatted) != QMessageBox.StandardButton.Yes:
                 return
         dialog = QDialog()
-        dialog.setWindowTitle("Connect Vibepollo tray")
+        dialog.setWindowTitle("Connect Vibebeam tray")
         form = QFormLayout(dialog)
-        instructions = QLabel("Create a token in Vibepollo → API Tokens with:\n"
+        instructions = QLabel("Create a token in Vibebeam → API Tokens with:\n"
                               "GET /api/session/status\nPOST /api/apps/close\n\n"
                               "The token is saved privately for automatic login startup.")
         form.addRow(instructions)
@@ -531,7 +531,7 @@ def main(argv=None):
                     action.setEnabled(False)
             else:
                 # Tokens never appear in exception messages or desktop notifications.
-                QMessageBox.warning(None, "Vibepollo", str(error))
+                QMessageBox.warning(None, "Vibebeam", str(error))
                 poll()
             return
         if kind == "certificate":
@@ -539,7 +539,7 @@ def main(argv=None):
         elif kind == "updates":
             version, releases = result
             dialog = QMessageBox()
-            dialog.setWindowTitle("Vibepollo updates")
+            dialog.setWindowTitle("Vibebeam updates")
             labels = ["Latest " + ("prerelease" if release.get("prerelease") else "stable")
                       + ": " + release["tag_name"] for release in releases]
             dialog.setText(version + "\n\n" + ("\n".join(labels) or "No published releases found"))
@@ -560,7 +560,7 @@ def main(argv=None):
             try:
                 store.save(settings)
             except OSError as error:
-                QMessageBox.warning(None, "Vibepollo", "Connected for this session, but could not save the token: " + str(error))
+                QMessageBox.warning(None, "Vibebeam", "Connected for this session, but could not save the token: " + str(error))
             epoch.advance()
             poll()
         elif kind == "poll":
@@ -584,7 +584,7 @@ def main(argv=None):
             forget_action.setEnabled(bool(settings.get("token")))
             state = icon, label, services.get(HOST), services.get(CONTROLLER)
             if last_state is not None and state != last_state and not args.no_notifications:
-                tray.showMessage("Vibepollo", label)
+                tray.showMessage("Vibebeam", label)
             last_state = state
         else:
             poll()

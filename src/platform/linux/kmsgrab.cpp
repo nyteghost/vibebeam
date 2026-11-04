@@ -2685,8 +2685,14 @@ namespace platf {
       });
     }
 
-    if (!wl::init()) {
+    // This is optional monitor correlation, not Wayland capture. The machine
+    // service deliberately lacks a user socket; session operations belong to
+    // the broker. Do not guess a socket or import another user's environment.
+    const auto *wayland_display = std::getenv("WAYLAND_DISPLAY");
+    if (wayland_display && *wayland_display && !wl::init()) {
       correlate_to_wayland(cds);
+    } else if (!wayland_display || !*wayland_display) {
+      BOOST_LOG(debug) << "KMS: skipping optional local Wayland correlation; no user-session socket in this process";
     }
 
     // Deduce the full virtual desktop size

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { buildIdentity } from '@/utils/buildIdentity';
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
 import { useI18n } from 'vue-i18n';
 
@@ -20,6 +21,7 @@ import type { SessionStatus } from '@/types/sessions';
 import { useSystemStore } from '@/stores/system';
 import { formatBytes } from '@/utils/format';
 import { displayRecoverySupported } from '@/utils/displayRecovery';
+import QualityAdvisor from '@/components/QualityAdvisor.vue';
 
 interface OverviewWarning {
   key: string;
@@ -140,6 +142,7 @@ async function refresh(silent = false): Promise<void> {
   if (statsResult.status === 'fulfilled') {
     hostStats.value = statsResult.value;
     statsStale.value = false;
+
   } else {
     statsStale.value = true;
     nextErrors.push(errorMessage(statsResult.reason, t('ui.overview.errors.hostMetrics')));
@@ -331,6 +334,7 @@ onBeforeUnmount(() => {
   <div class="page page--wide overview-page">
     <PageHeader :title="t('ui.overview.title')" :description="t('ui.overview.description')">
       <template #actions>
+        <RouterLink to="/doctor" class="vs-button vs-button--secondary">{{ t('ui.doctor.title') }}</RouterLink>
         <div class="overview-refresh">
           <span class="overview-updated">{{
             t('ui.overview.updated', { time: lastUpdatedLabel })
@@ -347,6 +351,7 @@ onBeforeUnmount(() => {
       </template>
     </PageHeader>
     <div class="visually-hidden" aria-live="polite" aria-atomic="true">{{ readiness.label }}</div>
+    <QualityAdvisor />
     <FirstRunChecklist />
     <VirtualDisplayRecovery
       v-if="displayRecoverySupported(hostPlatform || system.metadata?.platform || '')"
@@ -540,7 +545,7 @@ onBeforeUnmount(() => {
       <footer class="overview-footer">
         <span
           >{{ t('ui.overview.installedVersion') }}
-          <strong>{{ system.metadata?.version || t('_common.unknown') }}</strong></span
+          <strong>{{ buildIdentity(system.metadata, t('_common.unknown')) }}</strong></span
         >
         <span>Based on Vibepollo by Nonary, built on Apollo and Sunshine</span>
         <nav :aria-label="t('ui.overview.support')">

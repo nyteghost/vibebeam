@@ -45,7 +45,7 @@ def prologue(source):
     lines = []
     for line in source.splitlines():
         if (not line.strip() or line.lstrip().startswith("#")
-                or line.startswith(("set ", "export ", "umask "))):
+                or line.startswith(("set ", "shopt ", "export ", "umask "))):
             lines.append(line)
         else:
             break

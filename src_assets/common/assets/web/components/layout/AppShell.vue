@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { buildIdentity } from '@/utils/buildIdentity';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import { useI18n } from 'vue-i18n';
 import { useRoute } from 'vue-router';
@@ -33,6 +34,7 @@ const navigationGroups = [
     labelKey: 'ui.shell.monitor',
     items: [
       { labelKey: 'ui.nav.stats', icon: 'activity', to: '/stats' },
+      { labelKey: 'ui.nav.doctor', icon: 'help', to: '/doctor' },
       { labelKey: 'ui.nav.logs', icon: 'logs', to: '/logs' },
     ],
   },
@@ -247,7 +249,7 @@ onBeforeUnmount(() => {
           <UiIcon :name="statusIcon" :size="18" />
           <span class="sidebar__label">
             <strong>{{ statusText }}</strong>
-            <small>{{ system.metadata?.version || t('ui.shell.host_status') }}</small>
+            <small>{{ buildIdentity(system.metadata, t('ui.shell.host_status')) }}</small>
           </span>
           <UiIcon name="refresh" :size="14" class="host-health__refresh sidebar__label" />
         </button>
@@ -305,6 +307,36 @@ onBeforeUnmount(() => {
       class="main-content"
       tabindex="-1"
     >
+      <!-- Persistent host health at the top of each workspace page. The
+           sidebar remains fixed while the workspace scrolls independently. -->
+      <div class="workspace-status" :data-state="system.health">
+        <div class="workspace-status__summary">
+          <UiIcon :name="statusIcon" :size="18" aria-hidden="true" />
+          <span>{{ t('ui.shell.host_console') }}:</span>
+          <strong>{{ statusText }}</strong>
+          <span v-if="system.metadata?.version" class="workspace-status__version">
+            {{ buildIdentity(system.metadata) }}
+          </span>
+        </div>
+        <div class="workspace-status__actions">
+          <RouterLink to="/stats" class="workspace-status__link">
+            <UiIcon name="activity" :size="16" aria-hidden="true" />
+            {{ t('ui.nav.stats') }}
+          </RouterLink>
+          <button
+            class="workspace-status__refresh"
+            type="button"
+            :disabled="system.loadingHost"
+            :aria-busy="system.loadingHost"
+            :aria-label="t('ui.shell.refresh_host_status')"
+            :title="t('ui.shell.refresh_host_status')"
+            @click="system.refreshHost"
+          >
+            <UiIcon name="refresh" :size="16" aria-hidden="true" />
+            <span class="workspace-status__refresh-label">{{ t('_common.refresh') }}</span>
+          </button>
+        </div>
+      </div>
       <UpdateNotice />
       <slot />
     </main>

@@ -27,6 +27,7 @@ program = r'''
 #include <optional>
 #include <string>
 #include "src/color_profile_policy.h"
+#include "tests/support/native_mutation_test_stub.h"
 using HRESULT = std::int32_t;
 using LSTATUS = long;
 constexpr HRESULT E_NOTIMPL = static_cast<HRESULT>(0x80004001u);

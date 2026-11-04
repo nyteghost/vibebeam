@@ -18,6 +18,38 @@ int vibepollo_session_exec_entrypoint(int argc, char **argv);
   } \
 } while (0)
 
+static int connect_calls, backoff_calls, connect_failure, failures_before_success;
+static int fake_connect_once(void) {
+  ++connect_calls;
+  if (connect_calls > failures_before_success) return 42;
+  errno = connect_failure;
+  return -1;
+}
+static void fake_backoff(void) { ++backoff_calls; }
+static int check_connect_retry(void) {
+  connect_calls = backoff_calls = 0;
+  connect_failure = ECONNREFUSED;
+  failures_before_success = 2;
+  CHECK(session_connect_with_retry(true, fake_connect_once, fake_backoff) == 42);
+  CHECK(connect_calls == 3 && backoff_calls == 2);
+  connect_calls = backoff_calls = 0;
+  failures_before_success = 99;
+  CHECK(session_connect_with_retry(true, fake_connect_once, fake_backoff) == -1);
+  CHECK(connect_calls == 4 && backoff_calls == 3 && errno == ECONNREFUSED);
+  for (int error = 0; error < 3; ++error) {
+    const int errors[] = {EPERM, ECONNRESET, EACCES};
+    connect_failure = errors[error];
+    connect_calls = backoff_calls = 0;
+    CHECK(session_connect_with_retry(true, fake_connect_once, fake_backoff) == -1);
+    CHECK(connect_calls == 1 && backoff_calls == 0 && errno == errors[error]);
+  }
+  connect_failure = ENOENT;
+  connect_calls = backoff_calls = 0;
+  CHECK(session_connect_with_retry(false, fake_connect_once, fake_backoff) == -1);
+  CHECK(connect_calls == 1 && backoff_calls == 0);
+  return 0;
+}
+
 static int check_client_termination(int signal_number, bool pending) {
   int peers[2];
   CHECK(!socketpair(AF_UNIX, SOCK_SEQPACKET | SOCK_CLOEXEC, 0, peers));
@@ -162,6 +194,7 @@ static int check_clipboard_stdin(void) {
 }
 
 int main(void) {
+  CHECK(check_connect_retry() == 0);
   CHECK(!check_display_request_limits());
   CHECK(!check_clipboard_stdin());
   CHECK(!check_client_termination(SIGTERM, true));

@@ -53,7 +53,13 @@ namespace file_handler {
 #endif
 
     class native_filesystem_t: public filesystem_t {
+      // The default adapter is shared; retain diagnostics per calling thread.
+      inline static thread_local std::string operation_error;
+      static void record_error(const char *operation, std::error_code error) {
+        operation_error = std::string {operation} + ": " + error.message() + " (" + std::to_string(error.value()) + ")";
+      }
     public:
+      std::string last_error() const override { return operation_error; }
       bool exists(const std::filesystem::path &path) const override {
         std::error_code error;
         return std::filesystem::exists(path, error);
@@ -62,6 +68,7 @@ namespace file_handler {
       bool create_directories(const std::filesystem::path &path) override {
         std::error_code error;
         const bool created = std::filesystem::create_directories(path, error);
+        record_error("create_directories", error);
         return !error && (created || std::filesystem::exists(path));
       }
 
@@ -73,7 +80,9 @@ namespace file_handler {
       bool write(const std::filesystem::path &path, std::string_view contents) override {
 #ifdef _WIN32
         windows_file_api_t api;
-        return detail::write_windows_file(api, path, contents);
+        const bool success = detail::write_windows_file(api, path, contents);
+        if (!success) record_error("write/flush/close", std::error_code(GetLastError(), std::system_category()));
+        return success;
 #else
         // Atomic callers always write a fresh temporary path. O_EXCL and
         // O_NOFOLLOW prevent a same-directory attacker from redirecting a
@@ -84,6 +93,7 @@ namespace file_handler {
           S_IRUSR | S_IWUSR
         );
         if (fd < 0) {
+          record_error("open", std::error_code(errno, std::generic_category()));
           return false;
         }
 
@@ -95,10 +105,12 @@ namespace file_handler {
             if (errno == EINTR) {
               continue;
             }
+            record_error("write", std::error_code(errno, std::generic_category()));
             success = false;
             break;
           }
           if (written == 0) {
+            record_error("write", std::make_error_code(std::errc::io_error));
             success = false;
             break;
           }
@@ -106,9 +118,11 @@ namespace file_handler {
         }
 
         if (success && ::fsync(fd) != 0) {
+          record_error("fsync", std::error_code(errno, std::generic_category()));
           success = false;
         }
         if (::close(fd) != 0) {
+          if (success) record_error("close", std::error_code(errno, std::generic_category()));
           success = false;
         }
         return success;
@@ -125,10 +139,13 @@ namespace file_handler {
             )) {
           return replace_result_e::success;
         }
-        return GetLastError() == ERROR_ACCESS_DENIED ? replace_result_e::access_denied : replace_result_e::error;
+        const auto error = GetLastError();
+        record_error("replace", std::error_code(error, std::system_category()));
+        return error == ERROR_ACCESS_DENIED ? replace_result_e::access_denied : replace_result_e::error;
 #else
         std::error_code error;
         std::filesystem::rename(temporary, target, error);
+        record_error("rename", error);
         if (!error) {
           return replace_result_e::success;
         }

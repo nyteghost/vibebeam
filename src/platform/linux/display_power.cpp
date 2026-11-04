@@ -113,14 +113,19 @@ namespace platf::display_power {
   }
 
   std::shared_ptr<void> acquire() {
-    auto target_mutation = display_target::leases().begin_mutation();
-    if (!target_mutation) return {};
     // Standalone/SteamOS does not have a machine session broker.
     if (!std::getenv("VIBEPOLLO_MACHINE_HOST")) {
+      auto target_mutation = display_target::leases().begin_mutation();
+      if (!target_mutation) return {};
       static const auto noop = std::make_shared<int>(0);
       return noop;
     }
+    // Serialize broker requests before acquiring the mutation token.
+    // Otherwise concurrent stream owners race on begin_mutation() and
+    // incorrectly fail instead of sharing the same live display lease.
     std::lock_guard lock {lease_mutex};
+    auto target_mutation = display_target::leases().begin_mutation();
+    if (!target_mutation) return {};
     if (auto lease = shared_lease.lock()) {
       if (!lease->alive()) {
         auto replacement = start_ready("display-power");

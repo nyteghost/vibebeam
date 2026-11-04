@@ -345,3 +345,81 @@
     border-color: Highlight;
   }
 }
+
+/* Host health remains visible near the top of each page without changing
+   streaming controls or the sidebar navigation. */
+.workspace-status {
+  display: flex;
+  min-height: 52px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--vs-space-8);
+  padding: var(--vs-space-8) var(--vs-page-padding-desktop);
+  border-bottom: 1px solid var(--vs-color-border-subtle);
+  background: var(--vs-color-bg-surface);
+  color: var(--vs-color-text-secondary);
+  font-size: var(--vs-type-size-metadata);
+}
+.workspace-status__summary,
+.workspace-status__actions,
+.workspace-status__link,
+.workspace-status__refresh {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: var(--vs-space-8);
+}
+.workspace-status__summary strong {
+  color: var(--vs-color-text-primary);
+}
+.workspace-status__version {
+  color: var(--vs-color-text-muted);
+  overflow-wrap: anywhere;
+}
+.workspace-status[data-state='healthy'] .workspace-status__summary > svg {
+  color: var(--vs-color-status-success);
+}
+.workspace-status[data-state='warning'] .workspace-status__summary > svg {
+  color: var(--vs-color-status-warning);
+}
+.workspace-status[data-state='streaming'] .workspace-status__summary > svg {
+  color: var(--vs-color-status-info);
+}
+.workspace-status__link,
+.workspace-status__refresh {
+  min-height: 36px;
+  padding: var(--vs-space-8) var(--vs-space-12);
+  border: 1px solid var(--vs-color-border-subtle);
+  border-radius: var(--vs-radius-control);
+  background: transparent;
+  color: var(--vs-color-text-primary);
+  font: inherit;
+  text-decoration: none;
+  cursor: pointer;
+}
+.workspace-status__link:hover,
+.workspace-status__refresh:hover:not(:disabled) {
+  background: var(--vs-color-bg-subtle);
+  border-color: var(--vs-color-border-strong);
+}
+.workspace-status__refresh:disabled {
+  opacity: .55;
+  cursor: wait;
+}
+.workspace-status :is(a, button):focus-visible {
+  outline: var(--vs-focus-width) solid var(--vs-color-focus);
+  outline-offset: var(--vs-focus-offset);
+}
+@media (max-width: 1023px) {
+  .workspace-status { padding-inline: var(--vs-page-padding-tablet); }
+}
+@media (max-width: 767px) {
+  .workspace-status { padding-inline: var(--vs-page-padding-mobile); }
+  .workspace-status__version,
+  .workspace-status__refresh-label { display: none; }
+}
+@media (forced-colors: active) {
+  .workspace-status__link,
+  .workspace-status__refresh { border-color: ButtonText; }
+}
