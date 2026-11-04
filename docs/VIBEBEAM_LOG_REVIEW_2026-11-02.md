@@ -66,3 +66,31 @@ Read `Negotiated stream` alongside `Creating encoder`: the former describes nego
 - Pinned display schema: https://github.com/Nonary/libdisplaydevice/blob/18bdadbac2b21f35fe166aa1177db5c4e75829ae/src/common/include/display_device/types.h
 - EGL modifier semantics: https://registry.khronos.org/EGL/extensions/EXT/EGL_EXT_image_dma_buf_import_modifiers.txt
 - NVIDIA RTX 30-series encode/decode distinction: https://www.nvidia.com/en-us/geforce/news/rtx-30-series-community-qa/
+
+## November 3 follow-up: repeated KDE helper locale warnings
+
+The owner's installed beta `76f0d22c` ran both host/controller services, but
+`kscreen-doctor` reported `Detected locale "C"` about every five seconds.
+Journal cgroup metadata tied the helper to
+`vibepollo-session-controller.service`; the session controller and KDE user
+manager already had `LANG=en_US.UTF-8`. The five-second observations are
+consistent with the controller's readiness reconciliation, not evidence of a
+global locale problem.
+
+The controller deliberately keeps `LC_ALL=C` to make privileged machine
+parsing stable. Its `probe_wayland` KScreen invocation clears the inherited
+environment using `/usr/bin/env -i`, unintentionally dropping `LANG`.
+This beta fix supplies `LANG=C.UTF-8` **only** to the bounded KScreen child.
+No change is made to controller authority, credential/socket checks, timeout,
+output-size limits, JSON parsing, display selection or update behavior.
+
+`test_session_controller.sh` now exercises the actual probe invocation with
+a mocked command boundary and runs its constructed clean environment to assert
+`LANG=C.UTF-8` and no inherited `LC_ALL`. The test never launches a real
+KScreen process, changes monitors or restarts services.
+
+Hardware verification is still required after a separately approved, verified
+beta package is installed with a matching rollback archive and state backup:
+confirm the warning count stops increasing during normal idle operation and
+check video, cursor, physical output layout, audio and disconnect restoration.
+Do not infer that fewer log warnings proves the full display lifecycle works.
