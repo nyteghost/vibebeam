@@ -3,11 +3,13 @@
  * @brief Definitions for the nvhttp (GameStream) server.
  */
 // macros
+#include "upload_stream_copy.h"
 #define BOOST_BIND_GLOBAL_PLACEHOLDERS
 
 // standard includes
-#if defined(__linux__)
+#if !defined(_WIN32)
   #include <fcntl.h>
+  #include <sys/stat.h>
   #include <unistd.h>
 #endif
 #include <cerrno>
@@ -6653,6 +6655,15 @@ launch_session->exact_target_hold.reset();
       return;
     }
 
+    // Clipboard text is small; refuse oversized bodies instead of copying them around.
+    constexpr std::size_t clipboard_max_bytes = 4u * 1024u * 1024u;
+    if (request->content.size() > clipboard_max_bytes) {
+      BOOST_LOG(warning) << "[clipboard] Write by ["sv << verified_client->name << "] refused: "sv << request->content.size() << " bytes is over the "sv << clipboard_max_bytes << " byte limit"sv;
+      response->write(SimpleWeb::StatusCode::client_error_payload_too_large);
+      response->close_connection_after_response = true;
+      return;
+    }
+
     std::string content = request->content.string();
 
     bool success = platf::set_clipboard(content);
@@ -6707,6 +6718,46 @@ launch_session->exact_target_hold.reset();
       };
       if (std::find(reserved.begin(), reserved.end(), std::string_view(stem)) != reserved.end()) out.insert(out.begin(), '_');
       return out;
+    }
+
+    /**
+     * Create a new file for an upload, failing with errno == EEXIST when the name is taken.
+     * Never follows a symlink and never truncates an existing file.
+     */
+    std::FILE *open_new_upload_file(const std::filesystem::path &path) {
+#ifdef _WIN32
+      // "x" makes the create exclusive (CREATE_NEW), which also refuses existing links.
+      return _wfopen(path.c_str(), L"wbx");
+#else
+      const int fd = ::open(path.c_str(), O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0644);
+      if (fd < 0) {
+        return nullptr;
+      }
+      std::FILE *file = ::fdopen(fd, "wb");
+      if (!file) {
+        const int saved = errno;
+        ::close(fd);
+        std::error_code ignored;
+        std::filesystem::remove(path, ignored);
+        errno = saved;
+      }
+      return file;
+#endif
+    }
+
+    /**
+     * On Windows, tag a received file as coming from another computer (Mark of the Web), so
+     * SmartScreen and Office treat an uploaded program or document with the usual caution.
+     */
+    void mark_upload_from_network([[maybe_unused]] const std::filesystem::path &path) {
+#ifdef _WIN32
+      const std::wstring stream = path.native() + L":Zone.Identifier";
+      if (std::FILE *zone = _wfopen(stream.c_str(), L"wb")) {
+        static constexpr char marker[] = "[ZoneTransfer]\r\nZoneId=3\r\n";
+        std::fwrite(marker, 1, sizeof(marker) - 1, zone);
+        std::fclose(zone);
+      }
+#endif
     }
   }  // namespace
 
@@ -6772,57 +6823,59 @@ launch_session->exact_target_hold.reset();
     }
 
     // Never overwrite: "name.ext", then "name (1).ext", "name (2).ext", ...
-    // On POSIX the name is claimed with an exclusive create (no symlink following), so two
-    // uploads racing for the same name cannot overwrite each other.
+    // Each candidate is created atomically (exclusive create, symlinks not followed), so two
+    // uploads racing for the same name, or a link planted in the folder, cannot redirect or
+    // clobber a file.
     const std::filesystem::path base_path {name};
-    std::filesystem::path target = dir / base_path;
-    bool claimed = false;
-    for (int n = 1; n < 1000; ++n) {
-#if defined(__linux__)
-      const int fd = ::open(target.c_str(), O_CREAT | O_EXCL | O_WRONLY | O_NOFOLLOW | O_CLOEXEC, 0644);
-      if (fd >= 0) {
-        ::close(fd);
-        claimed = true;
+    std::filesystem::path target;
+    std::FILE *out = nullptr;
+    for (int n = 0; n < 1000 && !out; ++n) {
+      target = n == 0 ? dir / base_path : dir / (base_path.stem().string() + " (" + std::to_string(n) + ")" + base_path.extension().string());
+      out = open_new_upload_file(target);
+      if (!out && errno != EEXIST) {
         break;
       }
-      const bool taken = errno == EEXIST || errno == ELOOP;
-#else
-      const bool taken = std::filesystem::exists(target, ec);
-      if (!taken) {
-        claimed = true;
-        break;
-      }
-#endif
-      if (!taken) {
-        break;  // some other error (permissions, disk): stop and report below
-      }
-      target = dir / (base_path.stem().string() + " (" + std::to_string(n) + ")" + base_path.extension().string());
     }
-    if (!claimed) {
-      BOOST_LOG(warning) << "[file] Upload by ["sv << verified_client->name << "] refused: could not create a file for ["sv << name << "] (too many with that name, or the folder is not writable)"sv;
-      response->write(SimpleWeb::StatusCode::client_error_conflict);
+    if (!out) {
+      const bool exhausted = errno == EEXIST;
+      BOOST_LOG(warning) << "[file] Upload by ["sv << verified_client->name << "] refused: "sv << (exhausted ? "too many files with that name"sv : "cannot create the file in the receive folder"sv);
+      response->write(exhausted ? SimpleWeb::StatusCode::client_error_conflict : SimpleWeb::StatusCode::server_error_internal_server_error);
       response->close_connection_after_response = true;
       return;
     }
 
     {
-      std::ofstream out(target, std::ios::binary | std::ios::trunc);
-      out << request->content.rdbuf();
-      out.flush();
-      if (!out) {
+      // Only accept an upload if every byte the HTTP parser received was copied.
+      // An unexpected short body must not leave a partial file that looks complete.
+      const bool copied = upload_io::copy_exact(request->content.rdbuf(), out, content_size);
+      bool ok = copied;
+#if !defined(_WIN32)
+      // Set receive permissions on the original inode, not a replaceable
+      // directory entry. The host's private umask otherwise blocks readers.
+      if (ok && ::fchmod(::fileno(out), 0644) != 0) {
+        ok = false;
+      }
+#endif
+      if (std::fclose(out) != 0) {
+        ok = false;
+      }
+      if (!ok) {
         BOOST_LOG(warning) << "[file] Writing ["sv << target.string() << "] failed after "sv << content_size << " bytes (disk full or no permission?)"sv;
-        out.close();
         std::filesystem::remove(target, ec);
         response->write(SimpleWeb::StatusCode::server_error_internal_server_error);
         response->close_connection_after_response = true;
         return;
       }
     }
+    mark_upload_from_network(target);
 
+#ifdef _WIN32
     // The service runs with a private umask, which would leave the file unreadable to the
     // person it was sent to when the folder lives in their account. Make it world-readable
     // (never executable); the folder's own permissions still decide who can reach it.
     std::filesystem::permissions(target, std::filesystem::perms::owner_read | std::filesystem::perms::owner_write | std::filesystem::perms::group_read | std::filesystem::perms::others_read, std::filesystem::perm_options::replace, ec);
+
+#endif
 
     BOOST_LOG(info) << "[file] Received ["sv << target.filename().string() << "] ("sv << content_size << " bytes) from ["sv << verified_client->name << "] into "sv << dir.string();
     SimpleWeb::CaseInsensitiveMultimap headers;

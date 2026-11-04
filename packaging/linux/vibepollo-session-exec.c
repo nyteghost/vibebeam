@@ -220,6 +220,32 @@ static int relay_responses(int socket_fd, uint64_t generation) {
   }
 }
 
+/* Clipboard text must never appear on a command line, where every local user can read it
+ * through /proc/<pid>/cmdline. "clipboard-set -" reads the hex-encoded text from stdin
+ * instead; it then travels to the broker only over its private socket. */
+#define CLIPBOARD_STDIN_MAX_HEX (32768u * 2u)
+
+static char *read_clipboard_hex_from_stdin(void) {
+  char *buffer = malloc(CLIPBOARD_STDIN_MAX_HEX + 2u);
+  if (!buffer) return NULL;
+  size_t length = 0;
+  for (;;) {
+    const ssize_t got = read(STDIN_FILENO, buffer + length, CLIPBOARD_STDIN_MAX_HEX + 1u - length);
+    if (got < 0 && errno == EINTR) continue;
+    if (got < 0) { free(buffer); return NULL; }
+    if (!got) break;
+    length += (size_t) got;
+    if (length > CLIPBOARD_STDIN_MAX_HEX) { free(buffer); errno = E2BIG; return NULL; }
+  }
+  while (length && (buffer[length - 1] == '\n' || buffer[length - 1] == '\r')) --length;
+  buffer[length] = 0;
+  for (size_t i = 0; i < length; ++i) {
+    const char c = buffer[i];
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) { free(buffer); errno = EINVAL; return NULL; }
+  }
+  return buffer;
+}
+
 int main(int argc, char **argv) {
   uint64_t generation = 0;
   if (!drop_client_capabilities()) return fail("could not discard inherited capabilities");
@@ -228,6 +254,12 @@ int main(int argc, char **argv) {
   if (!parse_generation(getenv("VIBEPOLLO_SESSION_GENERATION"), &generation)) {
     errno = 0;
     return fail("missing or invalid VIBEPOLLO_SESSION_GENERATION");
+  }
+  char *clipboard_hex = NULL;
+  if (argc == 3 && !strcmp(argv[1], "clipboard-set") && !strcmp(argv[2], "-")) {
+    clipboard_hex = read_clipboard_hex_from_stdin();
+    if (!clipboard_hex) return fail("could not read clipboard text from stdin");
+    argv[2] = clipboard_hex;
   }
   const int socket_fd = connect_to_broker();
   if (socket_fd < 0) return fail("could not connect to the session broker");

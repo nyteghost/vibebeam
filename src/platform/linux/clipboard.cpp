@@ -171,6 +171,10 @@ namespace platf {
         close(out_pipe[0]);
         return false;
       }
+      // Non-blocking ends keep the deadline honest: a tool that stops reading its input or
+      // writing its output can never stall this thread past the timeout.
+      fcntl(in_pipe[1], F_SETFL, fcntl(in_pipe[1], F_GETFL) | O_NONBLOCK);
+      fcntl(out_pipe[0], F_SETFL, fcntl(out_pipe[0], F_GETFL) | O_NONBLOCK);
 
       // Write stdin, read stdout, both with the same overall deadline.
       std::size_t written = 0;
@@ -389,8 +393,10 @@ namespace platf {
         hex.push_back(digits[c >> 4]);
         hex.push_back(digits[c & 15]);
       }
+      // The text goes through stdin ("-"), never on a command line: argv of every process is
+      // readable by all local users through /proc/<pid>/cmdline.
       std::string ignored;
-      if (!run_tool({session_exec_path, "clipboard-set", hex}, "", false, ignored)) {
+      if (!run_tool({session_exec_path, "clipboard-set", "-"}, hex, false, ignored)) {
         why = "the session broker could not write Klipper";
         return false;
       }
@@ -528,6 +534,13 @@ namespace platf {
   }
 
   bool set_clipboard(const std::string &content) {
+    // Reject malformed UTF-8 before GLib's D-Bus variant construction.
+    // Backends stop at NUL; only bytes before the first NUL need validation.
+    const auto text_length = content.find('\0') == std::string::npos ? content.size() : content.find('\0');
+    if (!g_utf8_validate(content.data(), static_cast<gssize>(text_length), nullptr)) {
+      BOOST_LOG(warning) << "[clipboard] Refusing to set clipboard: the text is not valid UTF-8 ("sv << content.size() << " bytes)"sv;
+      return false;
+    }
     const auto selected = backend();
     std::string why;
     std::string ignored;
