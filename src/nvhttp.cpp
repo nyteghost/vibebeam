@@ -3660,6 +3660,38 @@ namespace nvhttp {
       return true;
     }
 
+    // Host-selection 2FA preflight for paired clients. GET checks whether a code
+    // is needed; POST supplies the code in a small body, never in a logged URL.
+    // Both use the same per-client grace and replay protection as launch/resume.
+    void preflightTwoFactor(resp_https_t response, req_https_t request) {
+      pt::ptree tree;
+      const auto verified_client = get_verified_cert(request);
+      const auto identity = resolve_client_identity(request, verified_client);
+      if (!verified_client || identity.uuid.empty() || !has_client_perm(verified_client, PERM::_allow_view)) {
+        tree.put("root.<xmlattr>.status_code", 403);
+        tree.put("root.<xmlattr>.status_message", "A paired client with View permission is required");
+      }
+      else if (request->content.size() > 64) {
+        tree.put("root.<xmlattr>.status_code", 400);
+        tree.put("root.<xmlattr>.status_message", "Two-factor code is too long");
+      }
+      else {
+        const auto code = request->method == "POST" ? request->content.string() : std::string {};
+        const auto outcome = two_factor::check(identity.uuid, code, has_client_perm(verified_client, PERM::skip_2fa));
+        tree.put("root.<xmlattr>.status_code", two_factor::status_code(outcome));
+        tree.put("root.<xmlattr>.status_message", two_factor::status_message(outcome));
+        // Never log codes, even on invalid attempts. check() enforces per-client
+        // throttling, consumption of backup codes, TOTP replay and lockout.
+      }
+      std::ostringstream body;
+      pt::write_xml(body, tree);
+      SimpleWeb::CaseInsensitiveMultimap headers;
+      headers.emplace("Content-Type", "application/xml");
+      headers.emplace("Cache-Control", "no-store");
+      response->write(SimpleWeb::StatusCode::success_ok, body.str(), headers);
+      response->close_connection_after_response = true;
+    }
+
     // Require current certificate-bound authority with View or Launch permission.
     hardware_metrics::access_t hardware_metrics_access(req_https_t request) {
       const auto settings = config::get_hardware_metrics_settings();
@@ -4106,9 +4138,9 @@ namespace nvhttp {
       tree.put("root.VibebeamVersion", VERSION);
 #if defined(__linux__)
       // A Linux host can only sync the clipboard when a usable backend was found.
-      tree.put("root.VibebeamFeatures", platf::clipboard_backend_name().empty() ? "files,monitors" : "clipboard,files,monitors");
+      tree.put("root.VibebeamFeatures", platf::clipboard_backend_name().empty() ? "files,monitors,2fa-preflight" : "clipboard,files,monitors,2fa-preflight");
 #else
-      tree.put("root.VibebeamFeatures", "clipboard,files,monitors");
+      tree.put("root.VibebeamFeatures", "clipboard,files,monitors,2fa-preflight");
 #endif
 #if defined(_WIN32)
       tree.put("root.VibebeamHostOS", "windows");
@@ -7627,6 +7659,8 @@ launch_session->exact_target_hold.reset();
         cancel(std::move(resp), std::move(req));
       });
     };
+    https_server.resource["^/actions/two-factor$"]["GET"] = preflightTwoFactor;
+    https_server.resource["^/actions/two-factor$"]["POST"] = preflightTwoFactor;
     https_server.resource["^/actions/streaming-check$"]["GET"] = getStreamingCheck;
     https_server.resource["^/actions/clipboard$"]["GET"] = getClipboard;
     https_server.resource["^/actions/clipboard$"]["POST"] = setClipboard;

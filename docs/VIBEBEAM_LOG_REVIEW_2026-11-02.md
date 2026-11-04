@@ -94,3 +94,24 @@ beta package is installed with a matching rollback archive and state backup:
 confirm the warning count stops increasing during normal idle operation and
 check video, cursor, physical output layout, audio and disconnect restoration.
 Do not infer that fewer log warnings proves the full display lifecycle works.
+
+## November 4: preflight two-factor verification on host selection
+
+On paired HTTPS Vibebeam hosts, `GET /actions/two-factor` returns the existing
+2FA status (200 if no challenge, 470 if required, 472 locked, 473 unavailable)
+as the same XML status envelope used by launch/resume. After a prompt,
+`POST /actions/two-factor` accepts a bounded code as the request body;
+no code is placed in the URL or logged. Both operations require a verified
+paired TLS identity with View permission and use `two_factor::check` with the
+same per-client skip permission, replay/backup-code rules, rate limits, and
+120-second grace window as the original launch/resume gate.
+
+The `2fa-preflight` feature is only advertised by hosts with this endpoint.
+Older hosts and clients continue their original launch-time 2FA flow. The
+launch/resume 2FA check remains authoritative, including when a user waits in
+the app grid longer than the grace window. No host policy is relaxed.
+
+Hardware verification: install a validated matching host beta and Windows
+client beta, then test initial required-code prompt at Computers, correct and
+wrong codes, cancellation, timeouts, backup codes, exempt clients, and a stream
+launched after the grace expires.
