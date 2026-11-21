@@ -2261,6 +2261,7 @@ namespace rtsp_stream {
     config.frame_generation_enabled = false;
 
     std::int64_t configuredBitrateKbps;
+    std::int64_t requestedWireBitrateKbps = 0;
     config.audio.flags[audio::config_t::HOST_AUDIO] = session->host_audio;
     try {
       config.audio.channels = (int) util::from_view(args.at("x-nv-audio.surround.numChannels"sv));
@@ -2352,6 +2353,7 @@ namespace rtsp_stream {
         configuredBitrateKbps = config.monitor.bitrate;
       }
 
+      requestedWireBitrateKbps = configuredBitrateKbps;
       BOOST_LOG(info) << "Client Requested bitrate is [" << configuredBitrateKbps << "kbps]";
 
       if (config::video.max_bitrate > 0) {
@@ -2603,6 +2605,18 @@ namespace rtsp_stream {
       respond(socket->sock, *session, &option, 409, "Conflict", req->sequenceNumber, {});
       return false;
     }
+
+    BOOST_LOG(info) << "Negotiated stream: codec="
+                    << (pyrowave_session ? "PyroWave" : config.monitor.videoFormat == 0 ? "H.264" : config.monitor.videoFormat == 1 ? "HEVC" : config.monitor.videoFormat == 2 ? "AV1" : "unknown")
+                    << " resolution=" << config.monitor.width << 'x' << config.monitor.height
+                    << " capture_fps=" << config.monitor.framerate
+                    << " encode_fps=" << config.monitor.encodingFramerate
+                    << " client_wire_kbps=" << requestedWireBitrateKbps
+                    << " host_max_kbps=" << config::video.max_bitrate
+                    << " encoder_target_kbps=" << config.monitor.bitrate
+                    << " fec_percent=" << config::stream.fec_percentage
+                    << " hdr_requested=" << config.monitor.dynamicRange
+                    << "; encoder target accounts for host cap, audio/control and FEC reservations; actual throughput is measured separately";
 
     // Keep response handles alive if constructing or queuing the startup task
     // consumes the lambda captures and then throws.

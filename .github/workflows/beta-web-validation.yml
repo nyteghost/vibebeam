@@ -1,0 +1,46 @@
+name: Beta web validation
+permissions:
+  contents: read
+on:
+  push:
+    branches: [beta/host-download-20261028]
+    paths:
+      - 'src_assets/common/assets/web/**'
+      - 'src_assets/common/assets/web-legacy/**'
+      - '.github/workflows/beta-web-validation.yml'
+  workflow_dispatch:
+concurrency:
+  group: beta-web-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: src_assets/common/assets/web
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@6044e13b5dc448c55e2357c09f80417699197238 # v6.2.0
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: |
+            src_assets/common/assets/web/package-lock.json
+            src_assets/common/assets/web-legacy/package-lock.json
+      # v2 imports shared legacy Vue components; both dependency trees are required.
+      - run: npm ci --no-audit --no-fund
+        working-directory: src_assets/common/assets/web-legacy
+      - run: npm ci --no-audit --no-fund
+      - run: npm run test:unit
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e -- e2e/dashboard-recovery.spec.ts e2e/connection-doctor.spec.ts e2e/host-updates.spec.ts
+        env:
+          VIBEPOLLO_TEST_OUTPUT: ${{ github.workspace }}/web-test-results
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: failure()
+        with:
+          name: beta-web-failure-traces
+          path: web-test-results
+          retention-days: 7

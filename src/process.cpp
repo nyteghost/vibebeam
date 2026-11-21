@@ -1846,13 +1846,13 @@ namespace proc {
       config::frame_limiter.fixed_virtual_display_refresh_multiplier(),
       config::frame_limiter.fixed_virtual_display_refresh_millihz(launch_session->client_vrr_requested)
     );
-    const auto mangohud_policy = platf::mangohud::make_launch_policy(
+    const auto mangohud_policy = platf::mangohud::for_application(platf::mangohud::make_launch_policy(
       config::frame_limiter.provider,
       config::frame_limiter.enable,
       config::frame_limiter.virtual_display_limiter_enabled(),
       mangohud_stream_policy,
       config::frame_limiter.fps_limit_millihz
-    );
+    ), config::frame_limiter.provider, !_app.steam_id.empty());
     const bool proton_limiter = platf::mangohud::proton_provider_selected(config::frame_limiter.provider);
     const bool proton_overlay_requested =
       platf::mangohud::proton_overlay_provider_selected(config::frame_limiter.provider);

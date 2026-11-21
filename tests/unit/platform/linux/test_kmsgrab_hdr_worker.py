@@ -109,6 +109,7 @@ namespace video {
     int dynamicRange=1, encoderCscMode=2, chromaSamplingType=0;
     capture_source_e capture_source=capture_source_e::active_output;
     std::optional<std::string> capture_output;
+    std::function<bool()> capture_target_valid;
   };
 @@COLOR_FUNCTIONS@@
 }

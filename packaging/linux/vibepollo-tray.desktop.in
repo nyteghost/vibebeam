@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
-Name=Vibepollo Tray
-Comment=Status and controls for the Vibepollo streaming host
+Name=Vibebeam Tray
+Comment=Status and controls for the Vibebeam streaming host
 Exec=@CMAKE_INSTALL_FULL_BINDIR@/vibepollo-tray
 TryExec=@CMAKE_INSTALL_FULL_BINDIR@/vibepollo-tray
 Icon=apollo

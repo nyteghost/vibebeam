@@ -95,7 +95,7 @@ cmake() {
 # This policy fixture does not have configured component source/dependencies.
 # Stub only the external helper and verify its actual invocation and order.
 python3() {
-  [[ "$1" == "$srcdir/$pkgname/scripts/build-linux-component-tests.py" && "$2" == build ]] || return 97
+  [[ "$1" == "$srcdir/$_src/scripts/build-linux-component-tests.py" && "$2" == build ]] || return 97
   echo COMPONENT-GATE
 }
 appstreamcli() { :; }

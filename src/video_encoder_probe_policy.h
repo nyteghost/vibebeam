@@ -4,10 +4,18 @@
  */
 #pragma once
 
+#include <chrono>
 #include <optional>
 #include <string>
 
 namespace video::encoder_probe_policy {
+
+  // Negative codec observations expire so transient driver/display failures
+  // can recover. Only callers with a successful, adapter-owned probe may use it.
+  inline bool negative_result_reusable(std::chrono::steady_clock::time_point observed,
+                                       std::chrono::steady_clock::time_point now) {
+    return now >= observed && now - observed < std::chrono::minutes {5};
+  }
 
   struct cache_key_t {
     std::string encoder_configuration;

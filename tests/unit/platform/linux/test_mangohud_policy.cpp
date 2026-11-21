@@ -212,3 +212,11 @@ TEST(MangoHudPolicy, HonorsLosslessLimitBeforeGlobalOverride) {
   ASSERT_TRUE(policy.enabled);
   EXPECT_EQ(policy.limit, "59.94");
 }
+
+TEST(MangoHUDPolicy, ProtonPolicyIsLimitedToManagedSteamApplications) {
+  const mangohud::launch_policy_t enabled {true, 60000, "60"};
+  EXPECT_FALSE(mangohud::for_application(enabled, "proton", false).enabled);
+  EXPECT_FALSE(mangohud::for_application(enabled, "auto", false).enabled);
+  EXPECT_TRUE(mangohud::for_application(enabled, "proton", true).enabled);
+  EXPECT_TRUE(mangohud::for_application(enabled, "mangohud", false).enabled);
+}

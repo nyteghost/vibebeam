@@ -34,6 +34,8 @@ namespace input::validation {
 
     std::optional<packet_size_bounds_t> packet_size_bounds(const std::uint32_t magic) {
       switch (magic) {
+        case ENABLE_HAPTICS_MAGIC:
+          return packet_size_bounds_t {sizeof(NV_HAPTICS_PACKET), sizeof(NV_HAPTICS_PACKET)};
         case MOUSE_MOVE_REL_MAGIC_GEN5:
           return packet_size_bounds_t {sizeof(NV_REL_MOUSE_MOVE_PACKET), sizeof(NV_REL_MOUSE_MOVE_PACKET)};
         case MOUSE_MOVE_ABS_MAGIC:

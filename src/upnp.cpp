@@ -12,6 +12,7 @@
 
 // local includes
 #include "config.h"
+#include "repeated_failure_log.h"
 #include "confighttp.h"
 #include "globals.h"
 #include "logging.h"
@@ -304,6 +305,7 @@ namespace upnp {
       platf::set_thread_name("upnp");
       auto shutdown_event = mail::man->event<bool>(mail::shutdown);
       bool mapped = false;
+      logging_policy::repeated_failure_t discovery_failures;
       IGDdatas data;
       urls_t mapped_urls;
       auto address_family = net::af_from_enum_string(config::sunshine.address_family);
@@ -314,9 +316,17 @@ namespace upnp {
         int err = 0;
         device_t device {upnpDiscover(2000, nullptr, nullptr, 0, IPv4, 2, &err)};
         if (!device || err) {
-          BOOST_LOG(warning) << "Couldn't discover any IPv4 UPNP devices"sv;
+          if (const auto repeats = discovery_failures.failure(err, std::chrono::steady_clock::now())) {
+            BOOST_LOG(warning) << "Couldn't discover any IPv4 UPNP devices (error=" << err
+                               << ", suppressed_repeats=" << *repeats
+                               << "); discovery retries continue; LAN streaming does not require UPnP";
+          }
           mapped = false;
           continue;
+        }
+
+        if (const auto repeats = discovery_failures.recover()) {
+          BOOST_LOG(info) << "IPv4 UPnP discovery recovered (suppressed_repeats=" << *repeats << ')';
         }
 
         for (auto dev = device.get(); dev != nullptr; dev = dev->pNext) {

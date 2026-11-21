@@ -104,6 +104,26 @@ TEST_F(TwoFactorTest, GraceWindowAvoidsReprompt) {
   EXPECT_EQ(two_factor::check("phone", "", false), result_e::required);
 }
 
+TEST_F(TwoFactorTest, HostSelectionPreflightAuthorizesOnlyThisClientTemporarily) {
+  std::uint64_t step = 0;
+  enable(step);
+  two_factor::set_clock_for_tests(1'700'000'040);
+
+  // Host-selection GET requests with no code cannot bypass an enabled gate.
+  EXPECT_EQ(two_factor::check("client-a", "", false), result_e::required);
+  EXPECT_EQ(two_factor::check("client-b", "", false), result_e::required);
+
+  // A code submitted at host selection opens the *existing* launch/resume
+  // grace for that paired UUID, without altering another client's authority.
+  ASSERT_EQ(two_factor::check("client-a", code_for(step + 1), false), result_e::ok);
+  EXPECT_EQ(two_factor::check("client-a", "", false), result_e::ok);
+  EXPECT_EQ(two_factor::check("client-b", "", false), result_e::required);
+
+  // After the host's existing grace expires, launch must challenge again.
+  two_factor::set_clock_for_tests(1'700'000'040 + two_factor::kGraceSeconds + 1);
+  EXPECT_EQ(two_factor::check("client-a", "", false), result_e::required);
+}
+
 TEST_F(TwoFactorTest, ExemptClientsSkipTheCode) {
   std::uint64_t used = 0;
   enable(used);

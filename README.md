@@ -4,6 +4,25 @@ Vibebeam is the companion host for [Vibelight](https://github.com/nyteghost/vibe
 
 A scheduled workflow keeps a branch named `upstream-main` identical to Nonary's Vibepollo and opens a pull request here when there are new changes.
 
+## Passive streaming check (beta)
+
+The [companion diagnostic endpoint](docs/STREAMING_CHECK.md) lets a paired
+Vibelight desktop client collect recent capture-path observations without
+changing the stream. Reports exclude raw logs and identifying network data.
+Older hosts still support client-only checks. Download only after the exact
+Windows/Arch validations pass; physical cleanup checks remain manual.
+
+## November 2 beta reliability investigation
+
+The [log review and hardware test guide](docs/VIBEBEAM_LOG_REVIEW_2026-11-02.md)
+tracks display baseline null handling, immutable prelogin catalog migration,
+strict haptics packet compatibility, bounded audio broker connection recovery,
+codec probe caching, managed Proton policy and capture/bitrate diagnostics.
+CPU capture fallback remains available. GPU zero-copy compatibility, cursor
+fallback and end-to-end latency still require RTX 3080/KDE hardware validation.
+These source changes are beta work; check the exact Actions result before
+installing and keep a matching rollback package. No production update is automatic.
+
 ## What Vibebeam adds
 
 - **Two-factor code to connect (optional).** In the web console, **Require 2FA to connect** shows a QR code to scan with any authenticator app, asks for one code to confirm, and gives you eight one-time backup codes. Vibelight then asks for the six-digit code each time someone starts or resumes a stream. Each code works once, five wrong tries pause that device for five minutes, and a dropped stream can reconnect for about two minutes without asking again. Apps that cannot type a code (such as stock Moonlight on iOS) need **Exempt from 2FA** turned on for that client. Lost your phone and your backup codes? Run `vibepollo --reset-2fa` on the host (as the same user the service runs as) to turn 2FA off, then set it up again. Turn it off normally with a current or backup code.
@@ -12,6 +31,21 @@ A scheduled workflow keeps a branch named `upstream-main` identical to Nonary's 
 - **Display health** (Linux): the Maintenance page shows whether the virtual-display module is built and loaded, lists the exact commands to fix it, and offers a diagnostics download.
 - **Hardened Linux service:** the host runs as its own user with a locked-down systemd unit, and the few things that need the desktop go through a small root broker with a fixed list of actions.
 - **Checksummed releases:** every release includes `SHA256SUMS`, and the Linux installer and update checks use this repository.
+
+## Beta updates on CachyOS
+
+The beta branch adds a manual terminal updater: `vibebeam-update --check` checks
+for a tested host beta, and `vibebeam-update` downloads/verifies it and guides the
+installation. It requires a matching rollback package, saves a private state
+backup, and asks you to disconnect clients before installation/restart. Older
+packages need the one-time bootstrap described in the
+[CachyOS beta guide](docs/BETA_CACHYOS_TESTING.md#single-command-manual-beta-updates-archcachyos-x86_64).
+This path stays on beta; physical streaming validation remains required.
+Beta dashboard version labels show the running build's short commit.
+Maintenance also includes **Main/Beta → Check for update → Update**, which opens
+the native updater on the local Arch/CachyOS host. Password/install approval and
+backups remain required. Main stays unavailable until a verified production
+package is approved and published; selecting it never installs a beta.
 
 ## Install on Linux
 

@@ -423,6 +423,16 @@ if(SUNSHINE_TEST_ENABLE_COMPONENT)
         LINK_LIBRARIES GTest::gtest Threads::Threads nlohmann_json::nlohmann_json Boost::property_tree OpenSSL::Crypto
     )
     set_tests_properties(test_component_nvhttp_bitrate_policy PROPERTIES TIMEOUT 30)
+    sunshine_add_test_target(
+        NAME test_component_upload_stream_copy
+        CATEGORY component
+        TEST_SOURCES
+            "${CMAKE_CURRENT_LIST_DIR}/tests_main.cpp"
+            "${CMAKE_CURRENT_LIST_DIR}/unit/test_upload_stream_copy.cpp"
+        PRODUCT_SOURCES
+        LINK_LIBRARIES GTest::gtest
+    )
+    set_tests_properties(test_component_upload_stream_copy PROPERTIES TIMEOUT 30)
 endif()
 
 sunshine_add_test_target(
@@ -1269,6 +1279,8 @@ if(SUNSHINE_TEST_ENABLE_COMPONENT AND CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     endif()
 endif()
 sunshine_register_component(NAME test_component_present_timing_policy TEST_SOURCE unit/test_present_timing_policy.cpp)
+sunshine_register_component(NAME test_component_log_reliability TEST_SOURCE unit/test_log_reliability.cpp
+    LINK_LIBRARIES nlohmann_json::nlohmann_json)
 sunshine_register_component(NAME test_component_encoder_probe_policy TEST_SOURCE unit/test_encoder_probe_policy.cpp)
 sunshine_register_component(NAME test_component_resource_config_catalog TEST_SOURCE unit/test_config_catalog_contract.cpp
     INCLUDE_DIRECTORIES "${SUNSHINE_TEST_GENERATED_INCLUDE_DIR}")
@@ -1364,7 +1376,10 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND SUNSHINE_TEST_ENABLE_COMPONENT)
     target_link_libraries(test_linux_display_power_lease PRIVATE
         PkgConfig::TEST_GIO Threads::Threads Boost::log Boost::format)
     add_test(NAME test_component_linux_display_power_lease COMMAND test_linux_display_power_lease)
-    set_tests_properties(test_component_linux_display_power_lease PROPERTIES LABELS "component" TIMEOUT 15)
+    # Subprocess handshakes are timeout-sensitive under parallel C++ fixture compilation.
+    # Keep all internal concurrent-owner assertions, but do not starve the fixture
+    # behind other compilation-heavy CTest cases on the same runner.
+    set_tests_properties(test_component_linux_display_power_lease PROPERTIES LABELS "component" TIMEOUT 60 RUN_SERIAL TRUE)
 
     add_executable(test_linux_app_supervisor
         "${CMAKE_CURRENT_LIST_DIR}/unit/platform/linux/test_app_supervisor.c")

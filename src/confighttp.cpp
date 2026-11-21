@@ -1,3 +1,4 @@
+#include "physical_display_baseline.h"
 /**
  * @file src/confighttp.cpp
  * @brief Definitions for the Web UI Config HTTPS server.
@@ -2699,24 +2700,18 @@ namespace confighttp {
   void refresh_remote_display_physical_baseline() {
     try {
       const auto devices = nlohmann::json::parse(display_helper_integration::enumerate_devices_json(display_device::DeviceEnumerationDetail::Full));
-      if (!devices.is_array()) return;
+      auto parsed = remote_display_topology::parse_physical_baseline(devices);
+      if (!parsed) {
+        BOOST_LOG(warning) << "Remote display baseline observation was empty or malformed; retaining previous baseline";
+        return;
+      }
       std::vector<remote_display_topology::node_t> nodes;
-      for (const auto &device : devices) {
-        const auto id = device.value("device_id", "");
-        const auto label = device.value("friendly_name", device.value("display_name", id));
-        if (id.empty()) continue;
+      for (auto &node : *parsed) {
 #ifdef __linux__
-        if (platf::linux_private_display::is_private_output(id)) continue;
+        if (platf::linux_private_display::is_private_output(node.id)) continue;
 #else
-        if (boost::algorithm::icontains(label, "virtual display")) continue;
+        if (boost::algorithm::icontains(node.label, "virtual display")) continue;
 #endif
-        remote_display_topology::node_t node;
-        node.id = id;
-        node.label = label;
-        node.physical = true;
-        const auto info = device.value("info", nlohmann::json::object());
-        node.active = info.value("active", true);
-        node.primary = info.value("primary", false);
         nodes.push_back(std::move(node));
       }
       remote_display_topology::instance().set_physical_baseline(std::move(nodes));
@@ -6538,7 +6533,6 @@ namespace confighttp {
 #ifdef _WIN32
     register_api_route("^/api/apps/rtx_hdr/live$", "POST", updateAppRtxHdrLive);
 #endif
-    register_api_route("^/api/logs$", "GET", getLogs);
     register_api_route("^/api/config$", "GET", getConfig);
     register_api_route("^/api/config$", "POST", saveConfig);
     // Partial updates for config settings; merges with existing file and
@@ -6589,7 +6583,6 @@ namespace confighttp {
     register_api_route("^/api/clients/update$", "POST", updateClient);
     register_api_route("^/api/clients/unpair$", "POST", unpair);
     register_api_route("^/api/clients/disconnect$", "POST", disconnectClient);
-    register_api_route("^/api/apps/close$", "POST", closeApp);
     register_api_route("^/api/session/status$", "GET", getSessionStatus);
     register_api_route("^/api/host/stats$", "GET", getHostStats);
     register_api_route("^/api/host/info$", "GET", getHostInfo);

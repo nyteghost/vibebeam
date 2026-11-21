@@ -401,6 +401,7 @@ namespace video {
       std::optional<probe_cache_key_t> cache_key;
       std::optional<probe_cache_key_t> attempted_cache_key;
       bool valid = false;
+      std::chrono::steady_clock::time_point observed_at {};
       bool hdr_supported = false;
       bool hevc_passed = false;
       bool hevc_hdr_supported = false;
@@ -762,14 +763,16 @@ namespace video {
 
       // Check if we have a valid cached success
       if (state.valid &&
-          encoder_probe_policy::cache_key_matches(policy_key, policy_cached_key) &&
-          (!want_hdr || state.hdr_supported)) {
+          encoder_probe_policy::cache_key_matches(policy_key, policy_cached_key)) {
         const bool hevc_supported = state.hevc_passed && (!want_hevc_hdr || state.hevc_hdr_supported);
         const bool av1_supported = state.av1_passed && (!want_av1_hdr || state.av1_hdr_supported);
 
-        if ((want_hevc && !hevc_supported) || (want_av1 && !av1_supported)) {
-          // Never trust a cached negative codec result; force a fresh probe.
-          return false;
+        if ((want_hevc && !hevc_supported) || (want_av1 && !av1_supported) ||
+            (want_hdr && !state.hdr_supported)) {
+          // A successful H.264/HEVC probe can still establish that AV1 is
+          // unavailable. Reuse that observation briefly, without advertising
+          // unsupported capabilities or caching total encoder failures.
+          return encoder_probe_policy::negative_result_reusable(state.observed_at, std::chrono::steady_clock::now());
         }
 
         return true;
@@ -809,6 +812,7 @@ namespace video {
         }
         state.cache_key = key;
         state.valid = true;
+        state.observed_at = std::chrono::steady_clock::now();
         state.hdr_supported = hdr_supported;
         state.hevc_passed = hevc_passed;
         state.hevc_hdr_supported = hevc_hdr_supported;
@@ -7225,7 +7229,7 @@ namespace video {
     const bool supported = pyrowave::host::probe(adapter, detail);
     const auto elapsed = std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started);
     if (supported) {
-      BOOST_LOG(info) << "Found PyroWave encoder [Vulkan] (probe took "sv << elapsed.count() << " ms)"sv;
+      BOOST_LOG(info) << "PyroWave encoder available [Vulkan]; not a negotiated session codec (probe took "sv << elapsed.count() << " ms)"sv;
       return 2;
     }
     BOOST_LOG(info) << "PyroWave is unavailable: "sv << detail;

@@ -486,6 +486,10 @@ require(host, "remove_pam_hook", "exact PAM cleanup migration")
 for forbidden in ("install-pam", "activate_greeter", "systemctl --user", "/usr/bin/runuser", "session-handoffs", "session-restores"):
     forbid(host, forbidden, "machine host")
 
+# Packaged /usr/share catalogs are immutable. Missing the current schema
+# version invokes process.cpp's atomic migration writer during prelogin startup.
+if prelogin_apps.get("version") != 2:
+    raise AssertionError("immutable pre-login catalog must ship the current migration schema")
 if len(prelogin_apps.get("apps", [])) != 1:
     raise AssertionError("pre-login catalog must expose exactly the passive desktop stream")
 prelogin = prelogin_apps["apps"][0]

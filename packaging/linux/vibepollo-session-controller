@@ -446,9 +446,11 @@ probe_wayland() {
   [[ "$candidate_backend" != hyprland-kms ]] || return 0
   # KScreen output is controlled by the session account. Bound both its size
   # and execution time, and keep JSON parsing below the UID boundary.
+  # The clean child environment must explicitly use UTF-8 for Qt; the controller
+  # itself retains LC_ALL=C for stable machine-control parsing.
   session_command_bounded "$command_timeout" "$candidate_uid" "$candidate_gid" \
     /usr/bin/env -i "HOME=$candidate_home" "USER=$candidate_user" "LOGNAME=$candidate_user" \
-        "PATH=/usr/bin" "XDG_RUNTIME_DIR=$candidate_runtime" \
+        "PATH=/usr/bin" "LANG=C.UTF-8" "XDG_RUNTIME_DIR=$candidate_runtime" \
         "DBUS_SESSION_BUS_ADDRESS=unix:path=$candidate_runtime/bus" \
         "WAYLAND_DISPLAY=$candidate_display" /usr/bin/bash -c '
           set -uo pipefail

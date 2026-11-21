@@ -1,5 +1,69 @@
 {
   "ui": {
+    "doctor": {
+      "title": "Connection Doctor",
+      "description": "Read-only host checks with evidence, limits and next steps.",
+      "scope": "This checks current host snapshots only. It does not start capture, probe an encoder, restart services, change quality or remove displays. Results are a snapshot; run again after making changes.",
+      "run": "Run checks again",
+      "running": "Checking host snapshots...",
+      "result": "Checked at {time}: {attention} checks need attention; {unknown} remain unknown.",
+      "summaryTitle": "Local support summary",
+      "summaryPrivacy": "Preview before copying. Includes running host version and check outcomes. Omits client names, app names, addresses, tokens, paths, raw logs and configuration. Nothing is uploaded.",
+      "summaryPreview": "Preview support summary",
+      "copy": "Copy support summary",
+      "copied": "Support summary copied. Nothing was uploaded.",
+      "manual": "Clipboard unavailable. Select the summary text and copy it manually.",
+      "states": {
+        "reported": "Reported",
+        "attention": "Needs attention",
+        "unknown": "Unknown",
+        "info": "Information"
+      },
+      "checks": {
+        "api": "Host Web API",
+        "version": "Running host version",
+        "encoder": "Encoder probe",
+        "capture": "Capture evidence",
+        "displays": "Virtual display readiness",
+        "sessions": "Session state",
+        "network": "Client network quality",
+        "compatibility": "Client compatibility"
+      },
+      "actions": {
+        "api": "Review host logs",
+        "version": "Review updates and maintenance",
+        "encoder": "Review encoder logs",
+        "capture": "Review display settings",
+        "displays": "Review display settings",
+        "sessions": "Review session metrics",
+        "network": "Review available stream metrics",
+        "compatibility": "Review version information"
+      },
+      "findings": {
+        "api_replied": "The host returned an acknowledged metadata snapshot. This does not test external connectivity or pairing.",
+        "api_unavailable": "Metadata could not be verified. Check that this host is reachable and that you are signed in; inspect logs if it persists.",
+        "running_version": "Running host reports version {version}. The installed package version is not checked here.",
+        "version_unknown": "The running version was not reported in a supported format. Do not infer it from a downloaded package.",
+        "encoder_failed": "A recent encoder probe failed. Review encoder logs before retrying. An active session does not clear this warning.",
+        "encoder_ready": "The host reports a completed encoder probe with H.264 support. The active encoder backend is not reported here; NVENC is not verified.",
+        "encoder_unknown": "No completed encoder probe is verified. Unknown does not mean the GPU is unsupported. This check does not start a probe.",
+        "capture_observed": "The Linux host reports observed event-driven KMS capture. This is a host snapshot, not an end-to-end video test.",
+        "capture_configured": "KMS is configured, but active event-driven capture is not observed. Configuration alone does not prove capture is working.",
+        "capture_unknown": "This host snapshot does not verify the active capture backend. Review settings and logs; no capture test was started.",
+        "physical_mode": "Virtual displays are not configured. Virtual-output support is not required for physical-display capture; the physical layout is not checked here.",
+        "displays_unavailable": "Virtual displays are configured, but the host reports them unavailable. Review display settings and logs before changing drivers.",
+        "displays_ready": "The Linux host reports virtual outputs capable and ready. Display ownership and physical-monitor layout have not been verified.",
+        "displays_unknown": "Virtual display readiness could not be established. Do not remove or recreate outputs based only on this result.",
+        "driver_failed": "The Windows host reports a virtual-display driver failure or incompatibility. Review display settings before retrying.",
+        "driver_ready": "The Windows host reports its virtual-display driver ready. This does not verify output ownership or the physical-monitor layout.",
+        "sessions_active": "The host reports {count} active stream sessions. Avoid disruptive maintenance while a stream is in use.",
+        "sessions_paused": "An application remains running with no active stream. Review session metrics before performing maintenance.",
+        "sessions_idle": "The host reports no active stream and no managed application running. This does not verify that all display cleanup has completed.",
+        "sessions_unknown": "Session state is unavailable or malformed. Do not assume the host is idle before disruptive maintenance.",
+        "network_unknown": "Client RTT, jitter, packet loss and delivered FPS are not provided by these host snapshots. Host output FPS cannot substitute for them.",
+        "compatibility_unknown": "No client version or protocol handshake is checked here. A host version alone does not prove compatibility."
+      }
+    },
     "app": {
       "connecting": "Connecting to this host...",
       "skip_to_content": "Skip to main content"
@@ -1131,6 +1195,7 @@
       "available": "Vibebeam {version} is available"
     },
     "nav": {
+      "doctor": "Connection Doctor",
       "api_tokens": "API tokens",
       "browser_stream": "Browser stream",
       "devices": "Devices",

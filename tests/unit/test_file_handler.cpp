@@ -14,6 +14,7 @@
 namespace {
   class fake_filesystem_t: public file_handler::filesystem_t {
   public:
+    std::string last_error() const override { return "open: Permission denied (13)"; }
     bool exists(const std::filesystem::path &path) const override {
       const auto key = path.generic_string();
       return files.contains(key) || directories.contains(key);
@@ -356,4 +357,19 @@ TEST(FileHandlerWindowsWrite, ReplaceFailurePreservesPrimaryAndBackupAfterSucces
   EXPECT_EQ(filesystem.api.flushed_contents, "updated");
   EXPECT_EQ(filesystem.removed, (std::set<std::string> {"state.json.tmp"}));
   EXPECT_EQ(filesystem.replace_calls, 1);
+}
+
+TEST(FileHandlerDiagnostics, FailedTemporaryWriteIdentifiesOperationAndPreservesOriginal) {
+  fake_filesystem_t filesystem;
+  filesystem.directories.insert("private");
+  filesystem.files["private/settings.json"] = "original";
+  filesystem.fail_write = true;
+  std::string diagnostic;
+  file_handler::handler_t handler {filesystem, [&](std::string_view text) { diagnostic = text; }};
+  EXPECT_EQ(handler.write_file("private/settings.json", "secret-new-contents"), -1);
+  EXPECT_EQ(filesystem.files["private/settings.json"], "original");
+  EXPECT_NE(diagnostic.find("target=private/settings.json"), std::string::npos);
+  EXPECT_NE(diagnostic.find("temporary=private/settings.json.tmp"), std::string::npos);
+  EXPECT_NE(diagnostic.find("open: Permission denied (13)"), std::string::npos);
+  EXPECT_EQ(diagnostic.find("secret-new-contents"), std::string::npos);
 }

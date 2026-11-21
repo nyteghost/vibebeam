@@ -73,7 +73,12 @@ program = r"""
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <string_view>
 """ + policy_include + r"""
+using namespace std::string_view_literals;
+#define BOOST_LOG(level) std::clog
+constexpr int info = 0, warning = 1;
+std::vector<std::pair<std::string, std::string>> selectable_monitors() { return {{"physical", "Primary"}}; }
 namespace config {
 video_t video {};
 std::optional<std::string> runtime_output_name_override() { return std::nullopt; }
@@ -103,6 +108,7 @@ struct App {
  std::unordered_map<std::string, std::string> config_overrides;
 };
 struct Client {
+ std::string name = "fixture";
  bool always_use_virtual_display = false;
  bool requested_resolution_only = false;
  std::string output_name_override, virtual_display_mode_override, virtual_display_layout_override, hdr_profile;

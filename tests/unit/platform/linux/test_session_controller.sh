@@ -36,6 +36,41 @@ fail_test() {
   exit 1
 }
 
+# The controller intentionally uses LC_ALL=C, but its clean child environment
+# must restore a UTF-8 locale for Qt's kscreen-doctor. Exercise the actual
+# probe_wayland command arguments without invoking a real compositor or systemd.
+(
+  candidate_uid=1000 candidate_gid=1000 candidate_home=/home/fixture
+  candidate_user=fixture candidate_runtime=/run/user/1000
+  candidate_display=wayland-0 candidate_backend=kwin
+  probe_calls=0
+  session_command_bounded() {
+    ((probe_calls += 1))
+    [[ "$1" == "$command_timeout" && "$2" == 1000 && "$3" == 1000 ]] ||
+      fail_test 'KScreen probe changed its target user or timeout'
+    shift 3
+    [[ "${1:-}" == /usr/bin/env && "${2:-}" == -i ]] ||
+      fail_test 'KScreen probe lost its clean environment'
+    if [[ " $* " == *'/usr/bin/wayland-info'* ]]; then return 0; fi
+    [[ " $* " == *'/usr/bin/kscreen-doctor -j'* ]] ||
+      fail_test 'KScreen probe no longer invokes the expected display helper'
+    local -a environment_prefix=()
+    while (($#)) && [[ "$1" != /usr/bin/bash ]]; do
+      environment_prefix+=("$1")
+      shift
+    done
+    [[ "${1:-}" == /usr/bin/bash ]] || fail_test 'missing bounded KScreen shell'
+    local observed_locale
+    observed_locale=$("${environment_prefix[@]}" /usr/bin/bash -c       'printf "%s|%s\n" "${LANG:-unset}" "${LC_ALL:-unset}"') ||
+      fail_test 'could not inspect the clean KScreen environment'
+    [[ "$observed_locale" == 'C.UTF-8|unset' ]] ||
+      fail_test "KScreen inherited a non-UTF-8 locale: $observed_locale"
+  }
+  probe_wayland || fail_test 'KScreen locale probe failed'
+  [[ "$probe_calls" == 2 ]] ||
+    fail_test 'KScreen probe did not run Wayland and KDE checks'
+) || exit $?
+
 event_log() {
   local joined
   joined=$(IFS=,; /usr/bin/printf '%s' "${events[*]}")

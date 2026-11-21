@@ -1,6 +1,7 @@
 #define _GNU_SOURCE
 
 #include "vibepollo-session-protocol.h"
+#include "vibepollo-session-connect-retry.h"
 
 #include <errno.h>
 #include <limits.h>
@@ -15,6 +16,7 @@
 #include <sys/capability.h>
 #include <sys/prctl.h>
 #include <unistd.h>
+#include <time.h>
 
 static bool drop_client_capabilities(void) {
   if (prctl(PR_CAP_AMBIENT, PR_CAP_AMBIENT_CLEAR_ALL, 0, 0, 0)) return false;
@@ -105,6 +107,11 @@ static int connect_to_broker(void) {
     return -1;
   }
   return socket_fd;
+}
+
+static void broker_connect_backoff(void) {
+  struct timespec delay = {.tv_sec = 0, .tv_nsec = 100000000};
+  while (nanosleep(&delay, &delay) && errno == EINTR) {}
 }
 
 static bool send_request(int socket_fd, int argc, char **argv, uint64_t generation) {
@@ -220,6 +227,32 @@ static int relay_responses(int socket_fd, uint64_t generation) {
   }
 }
 
+/* Clipboard text must never appear on a command line, where every local user can read it
+ * through /proc/<pid>/cmdline. "clipboard-set -" reads the hex-encoded text from stdin
+ * instead; it then travels to the broker only over its private socket. */
+#define CLIPBOARD_STDIN_MAX_HEX (32768u * 2u)
+
+static char *read_clipboard_hex_from_stdin(void) {
+  char *buffer = malloc(CLIPBOARD_STDIN_MAX_HEX + 2u);
+  if (!buffer) return NULL;
+  size_t length = 0;
+  for (;;) {
+    const ssize_t got = read(STDIN_FILENO, buffer + length, CLIPBOARD_STDIN_MAX_HEX + 1u - length);
+    if (got < 0 && errno == EINTR) continue;
+    if (got < 0) { free(buffer); return NULL; }
+    if (!got) break;
+    length += (size_t) got;
+    if (length > CLIPBOARD_STDIN_MAX_HEX) { free(buffer); errno = E2BIG; return NULL; }
+  }
+  while (length && (buffer[length - 1] == '\n' || buffer[length - 1] == '\r')) --length;
+  buffer[length] = 0;
+  for (size_t i = 0; i < length; ++i) {
+    const char c = buffer[i];
+    if (!((c >= '0' && c <= '9') || (c >= 'a' && c <= 'f'))) { free(buffer); errno = EINVAL; return NULL; }
+  }
+  return buffer;
+}
+
 int main(int argc, char **argv) {
   uint64_t generation = 0;
   if (!drop_client_capabilities()) return fail("could not discard inherited capabilities");
@@ -229,7 +262,14 @@ int main(int argc, char **argv) {
     errno = 0;
     return fail("missing or invalid VIBEPOLLO_SESSION_GENERATION");
   }
-  const int socket_fd = connect_to_broker();
+  char *clipboard_hex = NULL;
+  if (argc == 3 && !strcmp(argv[1], "clipboard-set") && !strcmp(argv[2], "-")) {
+    clipboard_hex = read_clipboard_hex_from_stdin();
+    if (!clipboard_hex) return fail("could not read clipboard text from stdin");
+    argv[2] = clipboard_hex;
+  }
+  const int socket_fd = session_connect_with_retry(
+    !strncmp(argv[1], "audio-", 6), connect_to_broker, broker_connect_backoff);
   if (socket_fd < 0) return fail("could not connect to the session broker");
   if (!send_request(socket_fd, argc, argv, generation)) {
     const int saved_errno = errno;

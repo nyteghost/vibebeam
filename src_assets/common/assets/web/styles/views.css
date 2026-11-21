@@ -103,3 +103,37 @@
     flex-direction: column;
   }
 }
+
+/* Read-only Vibe Intelligence beta panel. No streaming setting is mutated. */
+.intelligence-panel {
+  margin-block: var(--vs-space-16) var(--vs-space-24);
+  border-inline-start: 3px solid var(--vs-color-accent-default);
+}
+.intelligence-panel__beta {
+  display: inline-block;
+  margin-inline-start: var(--vs-space-8);
+  padding: var(--vs-space-2) var(--vs-space-8);
+  border-radius: var(--vs-radius-pill);
+  background: var(--vs-color-bg-subtle);
+  color: var(--vs-color-text-secondary);
+  font-size: var(--vs-type-size-helper);
+  vertical-align: middle;
+}
+.intelligence-panel__mode {
+  display: grid;
+  gap: var(--vs-space-4);
+  min-inline-size: 10rem;
+  color: var(--vs-color-text-secondary);
+  font-size: var(--vs-type-size-metadata);
+}
+.intelligence-panel__mode select {
+  min-block-size: 40px;
+  color: var(--vs-color-text-primary);
+}
+.intelligence-panel__note {
+  color: var(--vs-color-text-secondary);
+  margin-block: 0;
+}
+@media (max-width: 767px) {
+  .intelligence-panel__mode { inline-size: 100%; }
+}
