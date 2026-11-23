@@ -3,11 +3,13 @@
 #include "vibepollo-session-protocol.h"
 #include "vibepollo-session-stream-environment.h"
 #include "vibepollo-touch-map-policy.h"
+#include "../../src/steam_game_id.h"
 
 #include <ctype.h>
 #include <errno.h>
 #include <fcntl.h>
 #include <grp.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <poll.h>
 #include <pwd.h>
@@ -174,6 +176,20 @@ static bool parse_number(const char *value, unsigned long minimum, unsigned long
   if (errno || !end || *end || parsed < minimum || parsed > maximum) return false;
   *result = parsed;
   return true;
+}
+
+static int steam_handoff(const char *id_text) {
+  unsigned long id = 0;
+  if (!parse_number(id_text, 1, UINT32_MAX, &id)) return 126;
+  if (steam_is_shortcut_id((uint32_t) id)) {
+    char uri[64];
+    if (snprintf(uri, sizeof(uri), "steam://rungameid/%" PRIu64,
+                 steam_launch_game_id((uint32_t) id)) >= (int) sizeof(uri)) return 126;
+    char *const arguments[] = {"/usr/bin/steam", uri, NULL};
+    return execv("/usr/bin/steam", arguments);
+  }
+  char *const arguments[] = {"/usr/bin/steam", "-applaunch", (char *) id_text, NULL};
+  return execv("/usr/bin/steam", arguments);
 }
 
 static bool safe_text(const char *value, size_t maximum, bool allow_empty) {
@@ -1420,7 +1436,8 @@ static int execute_request(int argc, char **argv,
            (second_number == 2 || second_number == 6 || second_number == 8) &&
            parse_number(argv[4], 1, 8192, &third_number) &&
            parse_channel_mapping(argv[5], second_number, channel_mapping)) operation = AUDIO_CAPTURE;
-  else if (!strcmp(argv[1], "steam") && argc == 3 && numeric_suffix(argv[2], "") && !strcmp(identity->role, "desktop")) operation = STEAM;
+  else if (!strcmp(argv[1], "steam") && argc == 3 &&
+           parse_number(argv[2], 1, UINT32_MAX, &first_number) && !strcmp(identity->role, "desktop")) operation = STEAM;
   else if (!strcmp(argv[1], "global-limiter") &&
            global_limiter_arguments_are_safe(argc, argv) &&
            !strcmp(identity->role, "desktop")) operation = GLOBAL_LIMITER;
@@ -1579,8 +1596,7 @@ static int execute_request(int argc, char **argv,
       // endpoints, so execute the handoff here.  Wrapping it in a transient
       // user unit can fail before Steam is reached when the broker itself is
       // running inside systemd's hardened system-service namespace.
-      char *const arguments[] = {"/usr/bin/steam", "-applaunch", argv[2], NULL};
-      execv("/usr/bin/steam", arguments);
+      steam_handoff(argv[2]);
       break;
     }
     case STEAM_BIG_PICTURE: {

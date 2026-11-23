@@ -2,6 +2,32 @@
 
 #include <gtest/gtest.h>
 
+TEST(SteamSync, ShortcutsParticipateInSelectionExclusionAndIdempotentSync) {
+  using namespace platf::steam;
+  game_t game;
+  game.app_id = 2147488648U;
+  game.name = "Zelda Skyward Sword";
+  game.app_type = "shortcut";
+  game.installed = true;
+  EXPECT_EQ(sync::policy::select_games({game}, true, 10, 0, {}, false).size(), 1U);
+  EXPECT_TRUE(sync::policy::select_games({game}, false, 10, 0, {}, false).empty());
+  game.last_played = 1700000000;
+  EXPECT_EQ(sync::policy::select_games({game}, false, 10, 0, {}, false, 1700000001).size(), 1U);
+  EXPECT_TRUE(sync::policy::filter_games({game}, {{"2147488648", ""}}, false).empty());
+  nlohmann::json root = {{"apps", nlohmann::json::array()}};
+  EXPECT_TRUE(sync::policy::reconcile(root, {game}));
+  EXPECT_FALSE(sync::policy::reconcile(root, {game}));
+  const auto uuid = root["apps"][0]["uuid"];
+  EXPECT_EQ(root["apps"][0]["steam-id"], "2147488648");
+  EXPECT_EQ(root["apps"][0]["cmd"], launch_command(game));
+  EXPECT_FALSE(root["apps"][0].contains("steam-install-dir"));
+  game.name = "Renamed shortcut";
+  EXPECT_TRUE(sync::policy::reconcile(root, {game}));
+  ASSERT_EQ(root["apps"].size(), 1U);
+  EXPECT_EQ(root["apps"][0]["uuid"], uuid);
+  EXPECT_EQ(root["apps"][0]["name"], "Renamed shortcut");
+}
+
 TEST(SteamSync, RepairsManualFallbackCoverWithoutChangingLaunchSettings) {
   nlohmann::json manual = {{"name", "My game"}, {"steam-id", "42"},
                             {"steam-managed", "manual"}, {"cmd", "custom launch"},

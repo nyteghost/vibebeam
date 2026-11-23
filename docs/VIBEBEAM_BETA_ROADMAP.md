@@ -1,5 +1,15 @@
 # Vibebeam beta — reliability and safe host release
 
+## November 23 — Steam non-Steam shortcuts (task branch)
+
+- [x] Bounded, read-only shortcut discovery, saved IDs and account-local grid art.
+- [x] Steam-owned launch handoff; preserve unsigned catalog IDs and existing session isolation.
+- [x] Parser, discovery, sync, scanner and broker regression fixtures; focused Linux/Windows CI workflow.
+- [ ] Green CI/build evidence and physical CachyOS/Steam launch validation for this task.
+
+See [scope, limitations and test checklist](STEAM_NON_STEAM_SHORTCUTS.md).
+Implementation is on a separate task branch; no release or production install.
+
 Status: **in progress** (November 2, 2026). Scope: the beta branch only.
 Production CachyOS / KDE Wayland must remain on the known-good installed host
 until a verified package, rollback procedure, and smoke test exist.

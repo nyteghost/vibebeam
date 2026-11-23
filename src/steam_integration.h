@@ -8,6 +8,8 @@
  */
 #pragma once
 
+#include "steam_game_id.h"
+
 #include <cstdint>
 #include <filesystem>
 #include <optional>
@@ -68,7 +70,9 @@ namespace platf::steam {
     std::uint64_t last_updated = 0;
   };
 
-  // Discover installed games from the supplied Steam roots. A root may be a
+  // Discover installed games and saved, non-hidden non-Steam shortcuts from
+  // the supplied Steam roots. A shortcut's installed flag means registered
+  // with Steam, not that its arbitrary target has been verified. A root may be a
   // Steam installation directory or a steamapps directory. Duplicate app IDs
   // are collapsed deterministically. If roots is empty, common OS locations
   // are searched.

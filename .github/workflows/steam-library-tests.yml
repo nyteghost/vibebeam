@@ -1,0 +1,56 @@
+name: Steam library tests
+permissions:
+  contents: read
+on:
+  pull_request:
+    paths:
+      - 'src/steam*'
+      - 'src/provider_scan*'
+      - 'src/process.cpp'
+      - 'packaging/linux/vibepollo-session-broker.c'
+      - 'tests/test_steam*'
+      - 'tests/test_provider_scan_protocol.cpp'
+      - 'tests/unit/platform/linux/test_session_exec_policy.c'
+      - 'tests/steam-library/**'
+      - '.github/workflows/steam-library-tests.yml'
+  workflow_dispatch:
+concurrency:
+  group: steam-library-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-2022]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Initialize test dependency
+        run: git submodule update --init --depth 1 third-party/googletest
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          repository: nlohmann/json
+          ref: 9cca280a4d0ccf0c08f47a99aa71d1b0e52f8d03 # v3.11.3
+          path: .steam-test-deps/json
+          persist-credentials: false
+      - name: Linux broker test dependency
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcap-dev
+      - name: Configure focused tests
+        run: cmake -S tests/steam-library -B build-steam-tests -DSTEAM_TEST_JSON_INCLUDE="${{ github.workspace }}/.steam-test-deps/json/single_include"
+      - name: Build
+        run: cmake --build build-steam-tests --config Debug --parallel 2
+      - name: Test
+        run: ctest --test-dir build-steam-tests -C Debug --output-on-failure
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: steam-library-test-results-${{ runner.os }}
+          path: build-steam-tests/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 14
