@@ -250,7 +250,10 @@ TEST(SteamShortcuts, SkipsHiddenInvalidIdsAndUnsafeNames) {
     EXPECT_TRUE(parsed->empty());
   }
   auto bad = shortcut_file();
-  const auto where = std::search(bad.begin(), bad.end(), "appid", "appid" + 5);
+  // The search range must come from one object: MSVC debug iterators reject
+  // separate string literals as an invalid/transposed pointer range.
+  constexpr std::string_view appid_key {"appid"};
+  const auto where = std::search(bad.begin(), bad.end(), appid_key.begin(), appid_key.end());
   ASSERT_NE(where, bad.end());
   *(where - 1) = 3;  // A float's bits must not be used as an AppID.
   const auto parsed = parse_shortcuts(bad);
