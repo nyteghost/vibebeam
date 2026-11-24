@@ -3,6 +3,7 @@
  * @brief Definitions for cryptography functions.
  */
 // lib includes
+#include <openssl/asn1.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 
@@ -405,13 +406,21 @@ namespace crypto {
   }
 
   std::string_view signature(const X509 *x) {
+    if (!x) {
+      return {};
+    }
     const ASN1_BIT_STRING *asn1 = nullptr;
     X509_get0_signature(&asn1, nullptr, x);
     if (!asn1) {
       return {};
     }
 
-    return {(const char *) asn1->data, (std::size_t) asn1->length};
+    const auto *data = ASN1_STRING_get0_data(asn1);
+    const auto length = ASN1_STRING_length(asn1);
+    if (!data || length <= 0) {
+      return {};
+    }
+    return {reinterpret_cast<const char *>(data), static_cast<std::size_t>(length)};
   }
 
   std::string_view signature(const x509_t &x) {
@@ -485,10 +494,15 @@ namespace crypto {
 
     X509_set_pubkey(x509.get(), pkey.get());
 
-    auto name = X509_get_subject_name(x509.get());
-    X509_NAME_add_entry_by_txt(name, "CN", MBSTRING_ASC, (const std::uint8_t *) cn.data(), (int) cn.size(), -1, 0);
-
-    X509_set_issuer_name(x509.get(), name);
+    // Subject getters are read-only in OpenSSL 4. Build a name we own and let
+    // the setters copy it, which also works with OpenSSL 1.1 and 3.x.
+    util::safe_ptr<X509_NAME, X509_NAME_free> name {X509_NAME_new()};
+    if (!name ||
+        X509_NAME_add_entry_by_txt(name.get(), "CN", MBSTRING_ASC, (const std::uint8_t *) cn.data(), (int) cn.size(), -1, 0) != 1 ||
+        X509_set_subject_name(x509.get(), name.get()) != 1 ||
+        X509_set_issuer_name(x509.get(), name.get()) != 1) {
+      return {};
+    }
     X509_sign(x509.get(), pkey.get(), EVP_sha256());
 
     return {pem(x509), pem(pkey)};

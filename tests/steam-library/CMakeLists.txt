@@ -11,6 +11,10 @@ if(NOT EXISTS "${STEAM_TEST_JSON_INCLUDE}/nlohmann/json.hpp")
 endif()
 add_subdirectory("${REPO}/third-party/googletest" googletest)
 enable_testing()
+add_test(NAME boost_locale_patch
+    COMMAND "${CMAKE_COMMAND}" "-DREPO=${REPO}"
+        "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/boost-locale-patch"
+        -P "${REPO}/tests/cmake/BoostLocalePatchTest.cmake")
 
 add_library(steam_library STATIC
     "${REPO}/src/steam_integration.cpp"
