@@ -85,12 +85,17 @@ if(NOT Boost_FOUND OR _boost_targets_missing)
     list(REMOVE_ITEM BOOST_INCLUDE_LIBRARIES log_setup)
     set(BOOST_URL "https://github.com/boostorg/boost/releases/download/boost-${BOOST_VERSION}/boost-${BOOST_VERSION}-cmake.tar.xz")  # cmake-lint: disable=C0301
     set(BOOST_HASH "SHA256=67acec02d0d118b5de9eb441f5fb707b3a1cdd884be00ca24b9a73c995511f74")
+    # Boost 1.89 groups locale.hpp under include/boost/locale, although it is
+    # a sibling of that directory. Patch only the verified fallback sources.
+    set(BOOST_LOCALE_PATCH_COMMAND "${CMAKE_COMMAND}" "-DBOOST_SOURCE_DIR=<SOURCE_DIR>"
+            -P "${CMAKE_CURRENT_LIST_DIR}/PatchBoostLocale.cmake")
 
     if(CMAKE_VERSION VERSION_LESS "3.24.0")
         FetchContent_Declare(
                 Boost
                 URL ${BOOST_URL}
                 URL_HASH ${BOOST_HASH}
+                PATCH_COMMAND ${BOOST_LOCALE_PATCH_COMMAND}
         )
     elseif(APPLE AND CMAKE_VERSION VERSION_GREATER_EQUAL "3.25.0")
         # add SYSTEM to FetchContent_Declare, this fails on debian bookworm
@@ -98,6 +103,7 @@ if(NOT Boost_FOUND OR _boost_targets_missing)
                 Boost
                 URL ${BOOST_URL}
                 URL_HASH ${BOOST_HASH}
+                PATCH_COMMAND ${BOOST_LOCALE_PATCH_COMMAND}
                 SYSTEM  # requires CMake 3.25+
                 OVERRIDE_FIND_PACKAGE  # requires CMake 3.24+, but we have a macro to handle it for other versions
         )
@@ -106,6 +112,7 @@ if(NOT Boost_FOUND OR _boost_targets_missing)
                 Boost
                 URL ${BOOST_URL}
                 URL_HASH ${BOOST_HASH}
+                PATCH_COMMAND ${BOOST_LOCALE_PATCH_COMMAND}
                 OVERRIDE_FIND_PACKAGE  # requires CMake 3.24+, but we have a macro to handle it for other versions
         )
     endif()

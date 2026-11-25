@@ -34,6 +34,12 @@ installing and keep a matching rollback package. No production update is automat
 
 ## Beta updates on CachyOS
 
+**Non-Steam library discovery (task branch, awaiting validation):** the Steam
+game browser can also list games saved as non-Steam shortcuts, including their
+local Steam grid art. Launches go through Steam to retain its saved settings.
+See [shortcut support and testing](docs/STEAM_NON_STEAM_SHORTCUTS.md) for limits
+and the required physical checks. This is not a published host update.
+
 The beta branch adds a manual terminal updater: `vibebeam-update --check` checks
 for a tested host beta, and `vibebeam-update` downloads/verifies it and guides the
 installation. It requires a matching rollback package, saves a private state

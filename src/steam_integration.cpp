@@ -1,5 +1,6 @@
 /** @file src/steam_integration.cpp */
 #include "steam_integration.h"
+#include "steam_shortcuts.h"
 
 #if defined(__linux__)
   #include "provider_scan_protocol.h"
@@ -384,6 +385,57 @@ namespace {
       out.format.erase(0, 1);
     }
     return out;
+  }
+
+  void discover_shortcuts(const fs::path &steam_root, std::map<std::uint32_t, platf::steam::game_t> &games) {
+    std::error_code ec;
+    std::vector<fs::path> users;
+    for (fs::directory_iterator it(steam_root / "userdata", ec), end;
+         !ec && it != end; it.increment(ec)) {
+      const auto name = it->path().filename().string();
+      if (name.empty() || name.size() > 10 || !std::all_of(name.begin(), name.end(), [](char c) {
+            return c >= '0' && c <= '9';
+          }) || !it->is_directory(ec)) continue;
+      users.push_back(it->path());
+      if (users.size() > 128) return;
+    }
+    std::sort(users.begin(), users.end());
+    for (const auto &user : users) {
+      const auto file = user / "config/shortcuts.vdf";
+      if (!regular(file)) continue;
+      const auto size = fs::file_size(file, ec);
+      if (ec || size == 0 || size > platf::steam::shortcuts::max_file_bytes) continue;
+      std::ifstream input(file, std::ios::binary);
+      std::string contents(static_cast<std::size_t>(size), '\0');
+      if (!input.read(contents.data(), static_cast<std::streamsize>(contents.size())) ||
+          input.peek() != std::char_traits<char>::eof()) continue;
+      const auto shortcuts = platf::steam::shortcuts::parse(contents);
+      if (!shortcuts) continue;
+      for (const auto &entry : *shortcuts) {
+        platf::steam::game_t game;
+        game.app_id = entry.app_id;
+        game.stable_id = "steam:" + std::to_string(entry.app_id);
+        game.name = entry.name;
+        game.app_type = "shortcut";
+        game.installed = true;  // Registered shortcut; Steam validates the target on launch.
+        game.last_played = entry.last_played;
+        game.library_path = steam_root;
+        // Do not treat StartDir/Exe as an install directory or an owned
+        // process tree. They can point at shared launchers or arbitrary paths.
+        const std::vector<fs::path> grid {user / "config/grid"};
+        game.portrait_path = first_existing(grid, game.app_id, {"p.png", "p.jpg", "p.webp", "_p.png", "_p.jpg"});
+        game.boxart_path = game.portrait_path;
+        game.header_path = first_existing(grid, game.app_id, {".png", ".jpg", ".webp", "_hero.png", "_hero.jpg"});
+        game.icon_path = first_existing(grid, game.app_id, {"_icon.png", "_icon.jpg"});
+        game.artwork_path = !game.portrait_path.empty() ? game.portrait_path :
+                             (!game.header_path.empty() ? game.header_path : game.icon_path);
+        game.artwork_format = game.artwork_path.extension().string();
+        if (!game.artwork_format.empty()) game.artwork_format.erase(0, 1);
+        // The same ID may be present in more than one account/root. Retain
+        // one deterministic entry, without mixing another account's art.
+        games.emplace(game.app_id, std::move(game));
+      }
+    }
   }
 
   std::uint32_t read_u32(const std::vector<std::uint8_t> &data, std::size_t offset) {
@@ -1203,7 +1255,6 @@ namespace platf::steam {
         }
       }
     }
-#ifndef _WIN32
     std::unordered_set<std::string> metadata_roots;
     for (const auto &root : roots) {
       const auto apps = steamapps_for(root);
@@ -1211,6 +1262,8 @@ namespace platf::steam {
       std::error_code ec;
       const auto key = fs::weakly_canonical(steam_root, ec).generic_string();
       if (!ec && metadata_roots.insert(key).second) {
+        discover_shortcuts(steam_root, found);
+#ifndef _WIN32
         try {
           enrich_from_appinfo(steam_root / "appcache/appinfo.vdf", found);
           apply_user_metadata(steam_root, found, false);
@@ -1218,9 +1271,9 @@ namespace platf::steam {
           // Local launch metadata is an optimization. Steam's broker remains
           // the safe fallback for an unreadable or newly-versioned cache.
         }
+#endif
       }
     }
-#endif
     std::vector<game_t> result;
     result.reserve(found.size());
     for (auto &[id, game] : found) {
@@ -1287,7 +1340,7 @@ namespace platf::steam {
   }
 
   std::string launch_uri(std::uint32_t app_id) {
-    return app_id == 0 ? std::string {} : "steam://rungameid/" + std::to_string(app_id);
+    return app_id == 0 ? std::string {} : "steam://rungameid/" + std::to_string(steam_launch_game_id(app_id));
   }
 
   std::string launch_command(std::uint32_t app_id) {
@@ -1308,7 +1361,8 @@ namespace platf::steam {
   #endif
     // Send the request directly to Steam. Desktop URI openers can exit
     // successfully even when KDE drops the handoff during an output switch.
-    return "steam -applaunch " + std::to_string(app_id);
+    return steam_is_shortcut_id(app_id) ? "steam " + launch_uri(app_id) :
+                                          "steam -applaunch " + std::to_string(app_id);
 #endif
   }
 
@@ -1353,7 +1407,7 @@ namespace platf::steam {
 
   std::string session_launch_command(std::uint32_t app_id,
                                      const session_launch_policy_t &policy) {
-    if (app_id == 0 || !valid_session_launch_policy(policy)) {
+    if (app_id == 0 || steam_is_shortcut_id(app_id) || !valid_session_launch_policy(policy)) {
       return {};
     }
     return std::string(session_exec_path) + " steam-direct " +
@@ -1450,7 +1504,7 @@ namespace platf::steam {
 
   std::string launch_command(const game_t &game) {
 #ifdef __linux__
-    if (game.app_id == 0 || game.launch_executable.empty()) {
+    if (game.app_id == 0 || steam_is_shortcut_id(game.app_id) || game.launch_executable.empty()) {
       return launch_command(game.app_id);
     }
 
@@ -1582,6 +1636,8 @@ namespace platf::steam {
       const auto app_id_string = std::to_string(app_id);
       if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
         execl("/usr/libexec/vibeshine/vibepollo-session-exec", "vibepollo-session-exec", "steam", app_id_string.c_str(), static_cast<char *>(nullptr));
+      } else if (steam_is_shortcut_id(app_id)) {
+        execlp("steam", "steam", uri.c_str(), static_cast<char *>(nullptr));
       } else {
         execlp("steam", "steam", "-applaunch", app_id_string.c_str(), static_cast<char *>(nullptr));
       }

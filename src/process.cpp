@@ -1907,7 +1907,13 @@ namespace proc {
         });
         if (game != games.end()) {
           steam_proton_launch = game->launch_os == "windows";
-          if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
+          if (steam_is_shortcut_id(steam_app_id)) {
+            // Steam alone owns non-Steam target/Proton/launch-option
+            // interpretation. Never turn shortcut metadata into a direct
+            // command in the privileged host or inject it into a shell.
+            _app.cmd = platf::steam::launch_command(steam_app_id);
+            BOOST_LOG(info) << "Non-Steam shortcut uses Steam's saved launch settings; direct-launch feature injection is unavailable.";
+          } else if (std::getenv("VIBEPOLLO_MACHINE_HOST")) {
             const bool proton_overlay_enabled =
               effective_frame_limiter && proton_limiter &&
               proton_overlay_requested && mangohud_available;
@@ -1969,7 +1975,7 @@ namespace proc {
                 << "; stream-owned environment and inherited Steam Launch Options will be applied to the game process.";
             }
           }
-          if (!inherited_steam_environment_ready) {
+          if (!inherited_steam_environment_ready && !steam_is_shortcut_id(steam_app_id)) {
             BOOST_LOG(error)
               << "Stream-owned launch features cannot activate for Steam app " << steam_app_id
               << " because a safe direct-launch request could not be constructed; the already-running Steam broker cannot inherit their environment.";

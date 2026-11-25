@@ -13,12 +13,24 @@ int vibepollo_session_broker_entrypoint(int argc, char **argv);
 #undef main
 
 static bool user_service_fixture = false;
+static bool steam_handoff_fixture = false;
+static char steam_handoff_arguments[3][96];
+static unsigned int steam_handoff_calls = 0;
 
 // Exercise the real exec_user_service()/supervise_user_service() argv path
 // without contacting the host's user manager. The manager fixture applies
 // --setenv literally and executes the requested shell command. Cleanup is an
 // isolated not-found unit fixture; no real application unit is modified.
 static int broker_fixture_execv(const char *path, char *const arguments[]) {
+  if (steam_handoff_fixture) {
+    if (strcmp(path, "/usr/bin/steam")) return -1;
+    ++steam_handoff_calls;
+    memset(steam_handoff_arguments, 0, sizeof(steam_handoff_arguments));
+    for (unsigned int i = 0; i < 3 && arguments[i]; ++i) {
+      snprintf(steam_handoff_arguments[i], sizeof(steam_handoff_arguments[i]), "%s", arguments[i]);
+    }
+    return 0;
+  }
   if (!user_service_fixture) return execv(path, arguments);
   if (!strcmp(path, "/usr/bin/systemctl")) {
     if (arguments[3] && !strcmp(arguments[3], "show")) {
@@ -164,6 +176,22 @@ static int check_display_request_limits(void) {
 }
 
 int main(void) {
+  steam_handoff_fixture = true;
+  CHECK(steam_handoff("480") == 0);
+  CHECK(!strcmp(steam_handoff_arguments[1], "-applaunch"));
+  CHECK(!strcmp(steam_handoff_arguments[2], "480"));
+  CHECK(steam_handoff("2147488648") == 0);
+  CHECK(!strcmp(steam_handoff_arguments[1], "steam://rungameid/9223393511724810240"));
+  CHECK(steam_handoff_arguments[2][0] == '\0');
+  CHECK(steam_handoff("4294967295") == 0);
+  CHECK(!strcmp(steam_handoff_arguments[1], "steam://rungameid/18446744069448138752"));
+  CHECK(steam_handoff("0") == 126);
+  CHECK(steam_handoff("4294967296") == 126);
+  CHECK(steam_handoff("-2147483648") == 126);
+  CHECK(steam_handoff("2147488648;echo bad") == 126);
+  CHECK(steam_handoff("steam://rungameid/9223393511724810240") == 126);
+  CHECK(steam_handoff_calls == 3);
+  steam_handoff_fixture = false;
   char *stream_environment[] = {
     "SUNSHINE_APP_ID=42", "SUNSHINE_APP_NAME=Literal $HOME; $(false) name=ok",
     "SUNSHINE_CLIENT_WIDTH=3840", "SUNSHINE_CLIENT_HEIGHT=2160",

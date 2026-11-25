@@ -258,6 +258,11 @@ target_include_directories(sunshine_test_nanors_headers SYSTEM INTERFACE
 
 enable_testing()
 
+add_test(NAME test_boost_locale_patch
+    COMMAND "${CMAKE_COMMAND}" "-DREPO=${SUNSHINE_TEST_REPOSITORY_ROOT}"
+        "-DTEST_ROOT=${CMAKE_CURRENT_BINARY_DIR}/boost-locale-patch"
+        -P "${CMAKE_CURRENT_LIST_DIR}/cmake/BoostLocalePatchTest.cmake")
+
 # Exercise the Windows API-independent desktop/input ownership contract on the
 # native test host without requiring a physical Windows desktop.
 find_program(SUNSHINE_TEST_PYTHON_EXECUTABLE NAMES python3)
@@ -387,6 +392,16 @@ sunshine_add_test_target(
     PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/two_factor.cpp"
     LINK_LIBRARIES GTest::gtest nlohmann_json::nlohmann_json OpenSSL::Crypto
     DEPENDENCIES
+)
+
+sunshine_add_test_target(
+    NAME test_fast_crypto
+    CATEGORY fast
+    TEST_SOURCES
+        "${CMAKE_CURRENT_LIST_DIR}/tests_main.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/unit/test_crypto.cpp"
+    PRODUCT_SOURCES "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/crypto.cpp"
+    LINK_LIBRARIES GTest::gtest nlohmann_json::nlohmann_json OpenSSL::Crypto
 )
 
 if(SUNSHINE_TEST_ENABLE_COMPONENT)
@@ -1659,6 +1674,9 @@ if(WIN32)
             "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/windows/display_helper_v2/snapshot.cpp"
             "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/windows/display_helper_v2/snapshot_codec.cpp"
             "${SUNSHINE_TEST_REPOSITORY_ROOT}/src/platform/windows/display_helper_v2/state_machine.cpp"
+            # The updated tests compare display_device::Rational values.
+            "${SUNSHINE_TEST_REPOSITORY_ROOT}/third-party/libdisplaydevice/src/common/types.cpp"
+            "${SUNSHINE_TEST_REPOSITORY_ROOT}/third-party/libdisplaydevice/src/common/logging.cpp"
         LINK_LIBRARIES sunshine_test_displaydevice_headers Boost::algorithm nlohmann_json::nlohmann_json)
     sunshine_register_component(NAME test_component_display_helper_v2_topology_transition TEST_SOURCE unit/test_display_helper_v2_topology_transition.cpp
         PRODUCT_SOURCES

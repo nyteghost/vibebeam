@@ -145,6 +145,6 @@ with tempfile.TemporaryDirectory(prefix="cancel-after-exit-") as directory:
     src = pathlib.Path(directory) / "test.cpp"
     binary = pathlib.Path(directory) / "test"
     src.write_text(program)
-    subprocess.run(["g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-pthread", "-I", str(root / "src"), str(src), "-o", str(binary)], check=True)
+    subprocess.run(["g++", "-std=c++20", "-Wall", "-Wextra", "-Werror", "-pthread", "-iquote", str(root / "src"), "-iquote", str(root), str(src), "-o", str(binary)], check=True)
     subprocess.run([str(binary)], check=True)
 print("Production cancel admission: exited-app, repeated cancel, authentication, ownership and teardown checks passed")

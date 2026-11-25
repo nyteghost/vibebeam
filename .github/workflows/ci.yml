@@ -237,8 +237,8 @@ jobs:
     with:
       use_self_hosted: ${{ github.event_name == 'workflow_dispatch' && inputs.use_self_hosted }}
       build_only: ${{ needs.release-candidate.outputs.should_release == 'true' }}
-      build_tests: ${{ needs.release-candidate.outputs.should_release == 'true' }}
-      release_commit: ${{ needs.release-candidate.outputs.release_commit || github.sha }}
+      build_tests: ${{ github.event_name == 'pull_request' || needs.release-candidate.outputs.should_release == 'true' }}
+      release_commit: ${{ needs.release-candidate.outputs.release_commit || github.event.pull_request.head.sha || github.sha }}
       release_version: ${{ needs.release-candidate.outputs.release_version || '2.0.1' }}
       release_tag: ${{ needs.release-candidate.outputs.tag_name }}
       release_artifact_retention_days: ${{ needs.release-candidate.outputs.should_release == 'true' && 14 || 1 }}
@@ -265,10 +265,11 @@ jobs:
       contents: read
     uses: ./.github/workflows/ci-archlinux.yml
     with:
-      build_tests: ${{ needs.release-candidate.outputs.should_release == 'true' }}
+      build_tests: ${{ github.event_name == 'pull_request' || needs.release-candidate.outputs.should_release == 'true' }}
+      validation_only: ${{ github.event_name == 'pull_request' }}
       use_self_hosted: ${{ github.event_name == 'workflow_dispatch' && inputs.use_self_hosted }}
       artifact_retention_days: ${{ needs.release-candidate.outputs.should_release == 'true' && 14 || 1 }}
-      release_commit: ${{ needs.release-candidate.outputs.release_commit || github.sha }}
+      release_commit: ${{ needs.release-candidate.outputs.release_commit || github.event.pull_request.head.sha || github.sha }}
       release_version: ${{ needs.release-candidate.outputs.release_version || '2.0.1' }}
 
   awaiting-signing:

@@ -1,5 +1,15 @@
 # Changelog
 
+## Non-Steam shortcuts (unreleased task branch)
+
+- Include saved, non-hidden Steam shortcuts in Browse games and Steam sync.
+- Preserve saved IDs and local grid artwork; launch through Steam's shortcut
+  GameID so its own launch options and compatibility settings remain in charge.
+- Bound binary parsing and retain the existing desktop-user scanner boundary.
+- Add Linux/Windows provider regression coverage and broker argument tests.
+- Physical Steam launch and streaming validation remain pending; see
+  [shortcut support](STEAM_NON_STEAM_SHORTCUTS.md). No production update is performed.
+
 ## Passive streaming check companion (beta)
 
 - Add paired-client, read-only capture diagnostics with view and own-session authorization.

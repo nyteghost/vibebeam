@@ -1,4 +1,6 @@
 #include "src/steam_integration.h"
+#include "src/steam_shortcuts.h"
+#include "src/provider_scan_protocol.h"
 
 #include <algorithm>
 #include <chrono>
@@ -20,6 +22,56 @@ namespace fs = std::filesystem;
 using namespace platf::steam;
 
 namespace {
+  void shortcut_key(std::vector<std::uint8_t> &data, std::uint8_t type, std::string_view key) {
+    data.push_back(type);
+    data.insert(data.end(), key.begin(), key.end());
+    data.push_back(0);
+  }
+
+  std::vector<std::uint8_t> shortcut_file(std::uint32_t id = 2147488648U, std::string_view name = "Zelda Skyward Sword", bool hidden = false) {
+    std::vector<std::uint8_t> data;
+    shortcut_key(data, 0, "shortcuts");
+    shortcut_key(data, 0, "0");
+    auto integer = [&](std::string_view key, std::uint32_t value) {
+      shortcut_key(data, 2, key);
+      for (unsigned shift = 0; shift < 32; shift += 8) data.push_back(static_cast<std::uint8_t>(value >> shift));
+    };
+    auto string = [&](std::string_view key, std::string_view value) {
+      shortcut_key(data, 1, key);
+      data.insert(data.end(), value.begin(), value.end());
+      data.push_back(0);
+    };
+    integer("appid", id);
+    string("AppName", name);
+    string("Exe", "\"/games/A Game/launcher\"");
+    string("StartDir", "/games");
+    string("LaunchOptions", "env SECRET=never-exported %command% --option");
+    integer("IsHidden", hidden ? 1 : 0);
+    integer("LastPlayTime", 1700000000);
+    shortcut_key(data, 0, "tags");
+    string("0", "Favorites");
+    data.insert(data.end(), {8, 8, 8, 8});
+    return data;
+  }
+
+  std::optional<std::vector<shortcuts::entry_t>> parse_shortcuts(const std::vector<std::uint8_t> &data) {
+    return shortcuts::parse(std::string_view {reinterpret_cast<const char *>(data.data()), data.size()});
+  }
+
+  class shortcut_library {
+  public:
+    fs::path root = fs::temp_directory_path() / ("vibebeam-shortcuts-" +
+      std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "-" + std::to_string(std::random_device {}()));
+    shortcut_library() { fs::create_directories(root / "steamapps"); }
+    ~shortcut_library() { std::error_code ec; fs::remove_all(root, ec); }
+    void write(std::string_view relative, const std::vector<std::uint8_t> &data) {
+      const auto path = root / relative;
+      fs::create_directories(path.parent_path());
+      std::ofstream out(path, std::ios::binary);
+      out.write(reinterpret_cast<const char *>(data.data()), static_cast<std::streamsize>(data.size()));
+    }
+  };
+
 #if defined(__linux__)
   class scoped_environment final {
   public:
@@ -161,6 +213,154 @@ namespace {
     output.write(reinterpret_cast<const char *>(data.data()), static_cast<std::streamsize>(data.size()));
   }
 }  // namespace
+
+TEST(SteamShortcuts, ReadsPersistedUnsignedIdUnicodeAndHistory) {
+  const auto parsed = parse_shortcuts(shortcut_file(0xffffffffU, "Zelda — 日本語"));
+  ASSERT_TRUE(parsed);
+  ASSERT_EQ(parsed->size(), 1U);
+  EXPECT_EQ(parsed->front().app_id, 0xffffffffU);
+  EXPECT_EQ(parsed->front().name, "Zelda — 日本語");
+  EXPECT_EQ(parsed->front().last_played, 1700000000U);
+}
+
+TEST(SteamShortcuts, RejectsTruncationTrailingGarbageAndDuplicateFields) {
+  const auto complete = shortcut_file();
+  for (std::size_t size = 0; size < complete.size(); ++size) {
+    EXPECT_FALSE(shortcuts::parse(std::string_view {reinterpret_cast<const char *>(complete.data()), size})) << size;
+  }
+  auto bad = complete;
+  bad.push_back(1);
+  EXPECT_FALSE(parse_shortcuts(bad));
+  bad = complete;
+  bad.resize(bad.size() - 4);
+  bad.push_back(8);  // Close tags before inserting a duplicate, case-insensitive field.
+  shortcut_key(bad, 2, "AppID");
+  bad.insert(bad.end(), {1, 0, 0, 128, 8, 8, 8});
+  EXPECT_FALSE(parse_shortcuts(bad));
+}
+
+TEST(SteamShortcuts, SkipsHiddenInvalidIdsAndUnsafeNames) {
+  EXPECT_TRUE(parse_shortcuts(shortcut_file(2147488648U, "Hidden", true))->empty());
+  EXPECT_TRUE(parse_shortcuts(shortcut_file(0))->empty());
+  EXPECT_TRUE(parse_shortcuts(shortcut_file(480))->empty());
+  for (const auto &name : {std::string {}, std::string {"bad\nname"}, std::string(513, 'a'),
+                          std::string {"\xc0\xaf"}, std::string {"\xed\xa0\x80"}, std::string {"\xf4\x90\x80\x80"}}) {
+    const auto parsed = parse_shortcuts(shortcut_file(2147488648U, name));
+    ASSERT_TRUE(parsed);
+    EXPECT_TRUE(parsed->empty());
+  }
+  auto bad = shortcut_file();
+  // The search range must come from one object: MSVC debug iterators reject
+  // separate string literals as an invalid/transposed pointer range.
+  constexpr std::string_view appid_key {"appid"};
+  const auto where = std::search(bad.begin(), bad.end(), appid_key.begin(), appid_key.end());
+  ASSERT_NE(where, bad.end());
+  *(where - 1) = 3;  // A float's bits must not be used as an AppID.
+  const auto parsed = parse_shortcuts(bad);
+  ASSERT_TRUE(parsed);
+  EXPECT_TRUE(parsed->empty());
+}
+
+TEST(SteamShortcuts, BoundsFilesStringsNestingAndEntryCount) {
+  EXPECT_FALSE(shortcuts::parse(std::string(shortcuts::max_file_bytes + 1, '\0')));
+  EXPECT_FALSE(parse_shortcuts(shortcut_file(2147488648U, std::string(65537, 'a'))));
+  std::vector<std::uint8_t> deep;
+  for (int i = 0; i < 10; ++i) shortcut_key(deep, 0, "nested");
+  deep.insert(deep.end(), 11, 8);
+  EXPECT_FALSE(parse_shortcuts(deep));
+  std::vector<std::uint8_t> many;
+  shortcut_key(many, 0, "shortcuts");
+  for (std::size_t i = 0; i <= shortcuts::max_entries; ++i) {
+    shortcut_key(many, 0, std::to_string(i));
+    many.push_back(8);
+  }
+  many.insert(many.end(), {8, 8});
+  EXPECT_FALSE(parse_shortcuts(many));
+}
+
+TEST(SteamShortcuts, DiscoversAlongsideNativeGamesAndUsesOnlyOwnProfileGridArt) {
+  shortcut_library library;
+  const auto bytes = shortcut_file();
+  library.write("userdata/123/config/shortcuts.vdf", bytes);
+  library.write("userdata/456/config/shortcuts.vdf", shortcut_file(2147488648U, "Duplicate account"));
+  library.write("userdata/456/config/grid/2147488648p.png", {1});
+  fs::create_directories(library.root / "steamapps/common/Native");
+  {
+    std::ofstream out(library.root / "steamapps/appmanifest_480.acf");
+    out << R"("AppState" { "appid" "480" "name" "Native game" "installdir" "Native" })";
+  }
+  auto games = discover_catalog({library.root, library.root / "steamapps"});
+  ASSERT_EQ(games.size(), 2U);
+  EXPECT_EQ(games[0].app_id, 480U);
+  const auto &game = games[1];
+  EXPECT_EQ(game.name, "Zelda Skyward Sword");
+  EXPECT_EQ(game.stable_id, "steam:2147488648");
+  EXPECT_EQ(game.app_type, "shortcut");
+  EXPECT_TRUE(game.installed);
+  EXPECT_TRUE(game.install_dir.empty());
+  EXPECT_TRUE(game.launch_executable.empty());
+  EXPECT_TRUE(game.launch_options.empty());
+  EXPECT_TRUE(game.artwork_path.empty());
+  library.write("userdata/123/config/grid/2147488648p.png", {1});
+  games = discover({library.root});
+  ASSERT_EQ(games.size(), 2U);
+  EXPECT_EQ(games[1].portrait_path, library.root / "userdata/123/config/grid/2147488648p.png");
+  EXPECT_EQ(games[1].artwork_format, "png");
+  std::ifstream input(library.root / "userdata/123/config/shortcuts.vdf", std::ios::binary);
+  const std::vector<std::uint8_t> unchanged {std::istreambuf_iterator<char> {input}, {}};
+  EXPECT_EQ(unchanged, bytes);
+}
+
+TEST(SteamShortcuts, CorruptAccountDoesNotHideOtherGamesAndRenameKeepsIdentity) {
+  shortcut_library library;
+  library.write("userdata/111/config/shortcuts.vdf", {0, 1, 2});
+  library.write("userdata/123/config/shortcuts.vdf", shortcut_file());
+  library.write("userdata/hidden/config/shortcuts.vdf", shortcut_file(2147488649U));
+  const auto before = discover({library.root});
+  ASSERT_EQ(before.size(), 1U);
+  library.write("userdata/123/config/shortcuts.vdf", shortcut_file(2147488648U, "Renamed game"));
+  const auto after = discover({library.root});
+  ASSERT_EQ(after.size(), 1U);
+  EXPECT_EQ(before[0].stable_id, after[0].stable_id);
+  EXPECT_EQ(after[0].name, "Renamed game");
+}
+
+TEST(SteamShortcuts, SessionCatalogPreservesIdentityWithoutCommandsOrPaths) {
+  shortcut_library library;
+  library.write("userdata/123/config/shortcuts.vdf", shortcut_file());
+  const auto payload = platf::provider_scan::encode_steam_catalog({true, discover({library.root})});
+  ASSERT_TRUE(payload);
+  EXPECT_EQ(payload->find("SECRET"), std::string::npos);
+  EXPECT_EQ(payload->find("/games"), std::string::npos);
+  EXPECT_EQ(payload->find(library.root.string()), std::string::npos);
+  const auto decoded = platf::provider_scan::decode_steam_catalog(*payload);
+  ASSERT_TRUE(decoded);
+  ASSERT_EQ(decoded->games.size(), 1U);
+  EXPECT_EQ(decoded->games[0].app_id, 2147488648U);
+  EXPECT_EQ(decoded->games[0].app_type, "shortcut");
+  EXPECT_TRUE(decoded->games[0].installed);
+  EXPECT_TRUE(decoded->games[0].launch_executable.empty());
+}
+
+TEST(SteamShortcuts, Uses64BitSteamUriWithoutReinterpretingShortcutCommands) {
+  EXPECT_EQ(launch_uri(2147488648U), "steam://rungameid/9223393511724810240");
+  EXPECT_EQ(launch_uri(0xffffffffU), "steam://rungameid/18446744069448138752");
+  EXPECT_EQ(launch_uri(480), "steam://rungameid/480");
+  EXPECT_TRUE(launch_uri(0).empty());
+  game_t game;
+  game.app_id = 2147488648U;
+  game.launch_executable = "/never-execute";
+  game.launch_options = "do not interpret this";
+  EXPECT_EQ(launch_command(game), launch_command(game.app_id));
+#if defined(__linux__)
+  EXPECT_EQ(launch_command(game), "steam steam://rungameid/9223393511724810240");
+  session_launch_policy_t policy;
+  policy.hdr = true;
+  EXPECT_TRUE(session_launch_command(game.app_id, policy).empty());
+  scoped_environment machine {"VIBEPOLLO_MACHINE_HOST", "1"};
+  EXPECT_EQ(launch_command(game), "/usr/libexec/vibeshine/vibepollo-session-exec steam 2147488648");
+#endif
+}
 
 #if defined(__linux__)
 TEST(SteamDiscovery, MachineHostDoesNotParseSessionHome) {
